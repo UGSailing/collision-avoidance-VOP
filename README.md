@@ -6,13 +6,15 @@ ROS2: Robot Operating System 2 \
 info: https://www.ros.org/ \
 installation: https://docs.ros.org/en/jazzy/Installation/Ubuntu-Install-Debs.html
 
-## required packages
+## extra requirements
+### extra packages
 - nmea-navsat-driver (to read in location data)
 - ntrip-client (for centimeter level precision)
+### extra python modules
+- python3-dotenv
 
 ## usage
-### environment
-activate ROS2 environment
+### auto activate ROS2 environment
 ```bash
 echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc
 ```
@@ -20,10 +22,7 @@ echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc
 ### build a package
 ```bash
 colcon build --packages-select package_name
-```
-reload the new packages
-```bash
-source install/setup.bash
+source install/setup.bash # reload packages
 ```
 
 ### run a node
