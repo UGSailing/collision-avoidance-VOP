@@ -33,17 +33,25 @@ def generate_launch_description():
         # 3. Start the NTRIP Client (FLEPOS connection)
         Node(
         package='ntrip_client',
-        executable='ntrip_ros', 
+        executable='ntrip_ros.py', 
         name='ntrip_client',
         parameters=[{
             'host': '3.64.78.173',     # FLEPOS address
             'port': 2101,                  # Standard port
-            'mountpoint': 'MountPoint',     # Check FLEPOS for exact mountpoint
-            'username': flepos_username,   # Your FLEPOS user
-            'password': flepos_password,   # Your FLEPOS pass
+            'mountpoint': 'FLEPOSVRS32GREC',     # Check FLEPOS for exact mountpoint
+            'username': "157762a001",   # Your FLEPOS user
+            'password': "ugsflepos",   # Your FLEPOS pass
             'rtcm_message_package': 'rtcm_msgs'
         }],
         # Remap to ensure it gets the GGA data for VRS
         remappings=[('nmea', 'nmea')] 
+        ),
+
+        # 4. Start the GPS Logger (Logs to CSV & Visualizes Path)
+        Node(
+            package='boat_gps',
+            executable='gps_logger',
+            name='gps_logger',
+            parameters=[{'log_file': os.path.expanduser('~/gps_log.csv')}]
         )
     ])

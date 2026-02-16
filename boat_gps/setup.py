@@ -1,4 +1,6 @@
 from setuptools import find_packages, setup
+import os
+from glob import glob
 
 package_name = 'boat_gps'
 
@@ -10,6 +12,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -24,8 +27,8 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'gps_system_launch = boat_gps.gps_system_launch:generate_launch_description',
             'gps_bridge = boat_gps.gps_bridge:main',
+            'gps_logger = boat_gps.gps_logger:main',
         ],
     },
 )

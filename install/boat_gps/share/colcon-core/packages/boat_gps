@@ -1,1 +1,1 @@
-mavros_msgs:nmea-navsat-driver:ntrip-client
+geometry_msgs:mavros_msgs:nav_msgs:nmea-navsat-driver:ntrip-client:sensor_msgs
