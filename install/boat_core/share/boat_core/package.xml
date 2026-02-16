@@ -3,9 +3,9 @@
 <package format="3">
   <name>boat_core</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
-  <maintainer email="mals@todo.todo">mals</maintainer>
-  <license>TODO: License declaration</license>
+  <description>the core package for the boat</description>
+  <maintainer email="jasper.vandevelde@ugent.be">Jasper Van de Velde</maintainer>
+  <license>MIT</license>
 
   <depend>rclpy</depend>
   <depend>std_msgs</depend>
