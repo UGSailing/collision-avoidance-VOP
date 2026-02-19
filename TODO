@@ -1,32 +1,17 @@
-- install ROS
-- install required packages
-- configure GPS
-```
-Step 1: Configure the SimpleRTK3B (Hardware)
-The Unicore UM982 chip comes with default settings that might not include the specific NMEA messages ROS needs. You must configure it once using a PC.
+# Camera & detection
+- ?
+# Control
+## data collection
+- CAN interface
+- read in messages and put coords into csv
 
-Connect the board to a PC via USB (Port labeled POWER+GPS).
+## map
+- make map use csv with dynamic name (related to current session)
+- try to put geofencing lines on map
 
-Download Unicore UPrecise (official tool) or use a serial terminal (like PuTTY/RealTerm).
+## path planning
+- create "heat" map with objects out CSV
+- path algorithm
 
-Send the following commands to enable 10Hz NMEA output and Heading:
-
-config com1 115200 (Set baud rate, adjust if you prefer 460800)
-
-gngga com1 0.1 (Position data at 10Hz)
-
-gnrmc com1 0.1 (Velocity data at 10Hz)
-
-gphdt com1 0.1 (True Heading data at 10Hz - Crucial for Compass)
-
-saveconfig (Save to permanent memory)
-
-Verify you see lines starting with $GNGGA and $GPHDT in the console.
-```
-
-- opt: add serial permissions
-```bash
-sudo usermod -a -G dialout $USER
-```
-
-- test
+## path following
+- ?
