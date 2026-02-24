@@ -3,6 +3,7 @@ from dash import dcc, html
 from dash.dependencies import Input, Output
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 
 # init
 app = dash.Dash(__name__)
@@ -53,14 +54,15 @@ app.layout = html.Div([
     Input('interval-updater', 'n_intervals')
 )
 def update_map(n):
-    # load CSV
+    # load CSVs
     try:
         df = pd.read_csv('mapping/points.csv')
-    except Exception as e:
-        # failsafe in case the CSV is currently being written to by another process
+        path_df = pd.read_csv('mapping/path.csv')
+    except Exception as _:
+        # failsafe in case the CSVs are currently being written to by another process
         return dash.no_update
 
-    # 2. create the map with Plotly
+    # create the map with Plotly
     fig = px.scatter_map(
         df, 
         lat="latitude", 
@@ -70,6 +72,17 @@ def update_map(n):
         zoom=15
     )
 
+    # overlay the path as a line trace
+    fig.add_trace(go.Scattermap(
+            lat=path_df["latitude"],
+            lon=path_df["longitude"],
+            mode="lines",
+            line=dict(width=3, color="red"),
+            hoverinfo="skip",
+            name="path"
+        ))
+        
+
     fig.update_layout(
         mapbox_style="open-street-map",
         margin={"r":0,"t":0,"l":0,"b":0}, # fullscreen
@@ -78,6 +91,7 @@ def update_map(n):
     )
     
     fig.update_traces(
+        selector=dict(type="scattermap", mode="markers"),
         marker=dict(size=12, opacity=0.8),
         hovertemplate="%{customdata[0]}<extra></extra>"
     )
