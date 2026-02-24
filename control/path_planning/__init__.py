@@ -1,0 +1,1 @@
+from .v1 import get_path_points
