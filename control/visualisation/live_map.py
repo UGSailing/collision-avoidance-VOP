@@ -1,9 +1,17 @@
+import argparse
+import os
 import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+
+# parse arguments
+parser = argparse.ArgumentParser()
+parser.add_argument('folder', type=str, help='Folder where points.csv and path.csv are stored')
+args = parser.parse_args()
+DATA_FOLDER = args.folder
 
 # init
 app = dash.Dash(__name__)
@@ -56,8 +64,8 @@ app.layout = html.Div([
 def update_map(n):
     # load CSVs
     try:
-        df = pd.read_csv('mapping/points.csv')
-        path_df = pd.read_csv('mapping/path.csv')
+        df = pd.read_csv(os.path.join(DATA_FOLDER, 'points.csv'))
+        path_df = pd.read_csv(os.path.join(DATA_FOLDER, 'path.csv'))
     except Exception as _:
         # failsafe in case the CSVs are currently being written to by another process
         return dash.no_update
