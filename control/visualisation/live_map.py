@@ -30,7 +30,7 @@ app.index_string = '''
                 margin: 0;
                 padding: 0;
                 background-color: black;
-                overflow: hidden; /* Prevent scrollbars */
+                overflow: hidden; 
             }
         </style>
     </head>
@@ -48,7 +48,6 @@ app.index_string = '''
 app.layout = html.Div([
     dcc.Graph(id='live-map', style={'height': '100vh', 'width': '100vw', 'border': 'none'}),
     
-    # the interval component triggers a function call automatically
     dcc.Interval(
         id='interval-updater',
         interval=2000, 
@@ -56,31 +55,56 @@ app.layout = html.Div([
     )
 ])
 
-# this function is called every time the interval ticks
 @app.callback(
     Output('live-map', 'figure'),
     Input('interval-updater', 'n_intervals')
 )
 def update_map(n):
-    # load CSVs
     try:
         df = pd.read_csv(os.path.join(DATA_FOLDER, 'points.csv'))
         path_df = pd.read_csv(os.path.join(DATA_FOLDER, 'path.csv'))
     except Exception as _:
-        # failsafe in case the CSVs are currently being written to by another process
         return dash.no_update
 
-    # create the map with Plotly
-    fig = px.scatter_map(
-        df, 
-        lat="latitude", 
-        lon="longitude", 
-        color="category", # differentiates dots with different color per category
-        hover_data={"category": True, "latitude": False, "longitude": False},
-        zoom=15
-    )
+    # 1. Create the base map
+    # We separate obstacles from other points to apply the hitbox only to them
+    obstacles_df = df[df['category'] == 'gps']
+    other_points_df = df[df['category'] != 'gps']
 
-    # overlay the path as a line trace
+    fig = go.Figure()
+
+    # 2. Add the HITBOX layer (Semi-transparent red areas)
+    # This represents the 5.0m safety zone around obstacles
+    fig.add_trace(go.Scattermap(
+        lat=obstacles_df["latitude"],
+        lon=obstacles_df["longitude"],
+        mode="markers",
+        marker=dict(
+            size=35,           # Large size to simulate the 5m area visually
+            color="red",
+            opacity=0.3        # Transparent so overlaps are visible
+        ),
+        name="hitbox",
+        hoverinfo="skip"
+    ))
+
+    # 3. Add the actual points (Obstacles and Destinations)
+    # Using px logic for the categorical coloring
+    for cat in df['category'].unique():
+        cat_df = df[df['category'] == cat]
+        color = "blue" if cat == "gps" else "green"
+        
+        fig.add_trace(go.Scattermap(
+            lat=cat_df["latitude"],
+            lon=cat_df["longitude"],
+            mode="markers",
+            marker=dict(size=12, color=color),
+            name=cat,
+            customdata=cat_df[["category"]],
+            hovertemplate="%{customdata[0]}<extra></extra>"
+        ))
+
+    # 4. Overlay the path line
     fig.add_trace(go.Scattermap(
             lat=path_df["latitude"],
             lon=path_df["longitude"],
@@ -89,23 +113,19 @@ def update_map(n):
             hoverinfo="skip",
             name="path"
         ))
-        
 
     fig.update_layout(
         mapbox_style="open-street-map",
-        margin={"r":0,"t":0,"l":0,"b":0}, # fullscreen
+        margin={"r":0,"t":0,"l":0,"b":0},
         showlegend=False,
-        uirevision='constant'             # prevents the map from resetting zoom/pan on live update
+        uirevision='constant',
+        mapbox=dict(
+            center=dict(lat=df["latitude"].mean(), lon=df["longitude"].mean()),
+            zoom=18 # Closer zoom to see the hitboxes clearly
+        )
     )
     
-    fig.update_traces(
-        selector=dict(type="scattermap", mode="markers"),
-        marker=dict(size=12, opacity=0.8),
-        hovertemplate="%{customdata[0]}<extra></extra>"
-    )
-
     return fig
 
 if __name__ == '__main__':
-    # debug=True allows for hot-reloading if you change the Python code
     app.run(debug=True)
