@@ -6,6 +6,7 @@ import pandas as pd
 from data_collection import read_CAN
 from path_planning import update_path
 from path_execution import follow_path
+import sys
 
 PATH_UPDATE_INTERVAL = 3  # seconds between path recalculations
 
@@ -68,7 +69,10 @@ if __name__ == "__main__":
         if resp == "map":
             if map_process is None or map_process.poll() is not None:
                 control_dir = Path(__file__).parent
-                python = control_dir / '.venv/Scripts/python.exe'
+                if sys.platform == "win32":
+                    python = control_dir / '.venv/Scripts/python.exe'
+                else:
+                    python = control_dir / '.venv/bin/python'
                 script = control_dir / 'visualisation/live_map.py'
                 map_process = subprocess.Popen([str(python), str(script), str(run_dir)])
             else:
