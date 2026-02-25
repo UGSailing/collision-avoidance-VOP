@@ -86,10 +86,10 @@ if __name__ == "__main__":
                 if map_process is None or map_process.poll() is not None:
                     # Pathing for Linux environment
                     if sys.platform == "win32":
-                    python_exe = base_dir / 'vop-ugs/bin/python' 
+                        python_exe = base_dir / 'control/.venv/Scripts/python.exe'
                     else:
-                    python = control_dir / '.venv/bin/python'
-                script = base_dir / 'control/visualisation/live_map.py'
+                        python_exe = base_dir / 'control/.venv/bin/python'
+                    script = base_dir / 'control/visualisation/live_map.py'
                     
                     if not python_exe.exists():
                         print(f"Error: Python executable not found at {python_exe}")
