@@ -61,8 +61,8 @@ class OccupancyMapper:
 
         # 2. Place Obstacles
         for _, row in df.iterrows():
-            # In your project, 'gps' category represents obstacles/boundaries
-            if row['category'] == 'gps':
+            # In your project, 'camera' category represents obstacles/boundaries
+            if row['category'] == 'camera':
                 x_m, y_m = self._gps_to_local(row['latitude'], row['longitude'])
                 
                 gx = int(x_m / self.res) + center

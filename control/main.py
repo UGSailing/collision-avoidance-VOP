@@ -23,7 +23,7 @@ def collection_loop(stop_event, run_dir):
 
 def planning_loop(stop_event, run_dir):
     # Initialize the mapper
-    mapper = OccupancyMapper(resolution=0.2, grid_size_m=40)
+    mapper = OccupancyMapper(resolution=0.2, grid_size_m=100)
     
     while not stop_event.is_set():
         try:
@@ -61,10 +61,10 @@ if __name__ == "__main__":
 
     # Seed data with initial obstacles and destination
     data = {
-        'id': [0, 1, 2, 0],
-        'category': ['gps', 'gps', 'gps', 'destination'],
-        'latitude': [51.011466, 51.011401, 51.011315, 51.011504],
-        'longitude': [3.708731, 3.709055, 3.709353, 3.708728]
+        'id': [0, 1, 2, 0, 0, 1],
+        'category': ['gps', 'gps', 'gps', 'destination', 'camera', 'camera'],
+        'latitude': [51.011466, 51.011401, 51.011315, 51.011504, 51.011402, 51.011446],
+        'longitude': [3.708731, 3.709055, 3.709353, 3.708728, 3.709157, 3.708945]
     }
     pd.DataFrame(data).to_csv(points_file, index=False)
 

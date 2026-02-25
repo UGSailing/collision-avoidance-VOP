@@ -3,5 +3,9 @@
 __pycache__/
 *.py[cod]
 *$py.class
+
 vop-ugs/
-/.venv
+.venv/
+
+.vscode/
+.idea/
