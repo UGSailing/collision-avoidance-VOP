@@ -9,6 +9,7 @@ from path_planning.occupancy_mapper import OccupancyMapper
 from data_collection import read_CAN
 from path_planning.v2 import update_path
 from path_execution import follow_path
+import sys
 
 PATH_UPDATE_INTERVAL = 3 
 
@@ -84,8 +85,11 @@ if __name__ == "__main__":
             elif resp == "map":
                 if map_process is None or map_process.poll() is not None:
                     # Pathing for Linux environment
+                    if sys.platform == "win32":
                     python_exe = base_dir / 'vop-ugs/bin/python' 
-                    script = base_dir / 'control/visualisation/live_map.py'
+                    else:
+                    python = control_dir / '.venv/bin/python'
+                script = base_dir / 'control/visualisation/live_map.py'
                     
                     if not python_exe.exists():
                         print(f"Error: Python executable not found at {python_exe}")
