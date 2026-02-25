@@ -47,6 +47,8 @@ class OccupancyMapper:
     def create_grid(self, csv_path, hitbox_radius_m=0.6):
         """
         Reads the points.csv, projects GPS points to the grid, and applies hitboxes.
+        The grid is always centred on the latest GPS position so that the current
+        boat location sits at the middle cell and the path planner uses it as start.
         """
         try:
             df = pd.read_csv(csv_path)
@@ -55,11 +57,19 @@ class OccupancyMapper:
         except Exception:
             return self.grid
 
-        # 1. Reset the grid to all zeros (empty)
+        # 1. Pin the origin to the latest GPS point so the grid is centred there.
+        #    This ensures get_grid_indices(latest_gps) == (center, center).
+        gps_rows = df[df['category'] == 'gps']
+        if not gps_rows.empty:
+            latest_gps = gps_rows.loc[gps_rows['id'].idxmax()]
+            self.origin_lat = latest_gps['latitude']
+            self.origin_lon = latest_gps['longitude']
+
+        # 2. Reset the grid to all zeros (empty)
         self.grid.fill(0)
         center = self.size_cells // 2
 
-        # 2. Place Obstacles
+        # 3. Place Obstacles
         for _, row in df.iterrows():
             # In your project, 'camera' category represents obstacles/boundaries
             if row['category'] == 'camera':
