@@ -23,15 +23,15 @@ def collection_loop(stop_event, run_dir):
 
 def planning_loop(stop_event, run_dir):
     # Initialize the mapper
-    mapper = OccupancyMapper(resolution=0.2, grid_size_m=100)
+    mapper = OccupancyMapper(resolution=0.2, grid_size_m=40)
     
     while not stop_event.is_set():
         try:
-            # 1. Generate the grid with a 5.0 meter hitbox
-            grid = mapper.create_grid(run_dir / 'points.csv', hitbox_radius_m=5.0)
+            # 1. Generate the grid with a 3.0 meter hitbox
+            grid = mapper.create_grid(run_dir / 'points.csv', hitbox_radius_m=3.0)
             
-            # 2. Pass the grid to your path planning logic
-            update_path(run_dir, grid) 
+            # 2. Pass BOTH the grid and the mapper to keep origins perfectly synced!
+            update_path(run_dir, grid, mapper) 
             
             print(f"Path updated. Obstacles detected: {grid.sum() > 0}")
         except Exception as e:

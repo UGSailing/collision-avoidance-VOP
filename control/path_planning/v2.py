@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import heapq
-from path_planning.occupancy_mapper import OccupancyMapper, get_path_points
+from path_planning.occupancy_mapper import get_path_points
 
 def heuristic(a, b):
     """Straight-line distance (Euclidean) between two grid cells."""
@@ -9,7 +9,6 @@ def heuristic(a, b):
 
 def astar(grid, start, goal):
     """Finds a path from start to goal avoiding 1.0 values (obstacles/hitboxes)."""
-    # Includes 8 directions (vertical, horizontal, and diagonal)
     neighbors = [(0,1),(0,-1),(1,0),(-1,0),(1,1),(1,-1),(-1,1),(-1,-1)]
     close_set = set()
     came_from = {}
@@ -20,11 +19,13 @@ def astar(grid, start, goal):
  
     while oheap:
         current = heapq.heappop(oheap)[1]
+        
         if current == goal:
             data = []
             while current in came_from:
                 data.append(current)
                 current = came_from[current]
+            data.append(start) # FIX: Ensure the red line visually connects to the start dot
             return data[::-1]
 
         close_set.add(current)
@@ -50,7 +51,7 @@ def astar(grid, start, goal):
                 heapq.heappush(oheap, (fscore[neighbor], neighbor))
     return None
 
-def update_path(run_dir, grid):
+def update_path(run_dir, grid, mapper):
     """
     Main planning function. Reads GPS points, uses A* on the grid, 
     and saves the resulting GPS path.
@@ -64,13 +65,10 @@ def update_path(run_dir, grid):
     if not pts:
         return
 
-    # Use a mapper instance to handle coordinate conversions
-    # Ensure parameters match your OccupancyMapper settings in main.py
-    temp_mapper = OccupancyMapper(resolution=0.2, grid_size_m=40)
-    temp_mapper.create_grid(points_path) # Synchronize origin point
-
-    start_idx = temp_mapper.get_grid_indices(pts[0][0], pts[0][1])
-    goal_idx = temp_mapper.get_grid_indices(pts[1][0], pts[1][1])
+    # Use the 'mapper' passed from main.py to handle coordinate conversions.
+    # This prevents the GPS translation offset error!
+    start_idx = mapper.get_grid_indices(pts[0][0], pts[0][1])
+    goal_idx = mapper.get_grid_indices(pts[1][0], pts[1][1])
 
     # Run the A* algorithm
     path_indices = astar(grid, start_idx, goal_idx)
@@ -81,11 +79,11 @@ def update_path(run_dir, grid):
         center = grid.shape[0] // 2
         for r, c in path_indices:
             # Revert local meters to GPS
-            y_m = (r - center) * temp_mapper.res
-            x_m = (c - center) * temp_mapper.res
+            y_m = (r - center) * mapper.res
+            x_m = (c - center) * mapper.res
             
-            lat = (y_m / 111320) + temp_mapper.origin_lat
-            lon = (x_m / (111320 * np.cos(np.radians(temp_mapper.origin_lat)))) + temp_mapper.origin_lon
+            lat = (y_m / 111320) + mapper.origin_lat
+            lon = (x_m / (111320 * np.cos(np.radians(mapper.origin_lat)))) + mapper.origin_lon
             path_gps.append({'latitude': lat, 'longitude': lon})
         
         # Save the collision-free path
