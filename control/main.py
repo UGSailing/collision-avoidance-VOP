@@ -1,15 +1,12 @@
+import pandas as pd
 import threading
 import subprocess
-import pandas as pd
-from datetime import datetime
-from pathlib import Path
-from path_planning.occupancy_mapper import OccupancyMapper
-
-# Mock imports (ensure these exist in your project)
-from data_collection import read_CAN
-from path_planning.v2 import update_path
-from path_execution import follow_path
 import sys
+from pathlib import Path
+from datetime import datetime
+from data_collection import read_CAN
+from path_planning import update_path, OccupancyMapper
+from path_execution import follow_path
 
 PATH_UPDATE_INTERVAL = 3 
 

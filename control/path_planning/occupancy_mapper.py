@@ -82,22 +82,3 @@ class OccupancyMapper:
             self.grid = binary_dilation(self.grid, structure=struct).astype(float)
             
         return self.grid
-
-def get_path_points(df):
-    """
-    Helper function to extract current robot position and destination from the dataframe.
-    """
-    try:
-        gps_points = df[df['category'] == 'gps']
-        current_location = gps_points.loc[gps_points['id'].idxmax()]
-        
-        destination_points = df[df['category'] == 'destination']
-        current_destination = destination_points.loc[destination_points['id'].idxmax()]
-        
-        return [
-            (current_location['latitude'], current_location['longitude']), 
-            (current_destination['latitude'], current_destination['longitude'])
-        ]
-    except (ValueError, KeyError):
-        # Return None or empty if data isn't ready yet
-        return None
