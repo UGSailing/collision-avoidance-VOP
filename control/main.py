@@ -1,8 +1,8 @@
 from datetime import datetime
 from pathlib import Path
-import pandas as pd
 import threading
 import subprocess
+import pandas as pd
 from data_collection import read_CAN
 from path_planning import update_path
 from path_execution import follow_path
@@ -24,7 +24,6 @@ def planning_loop(stop_event):
         except Exception as e:
             print(f"Path planning error: {e}")
         stop_event.wait(PATH_UPDATE_INTERVAL)
-
 
 def execution_loop(stop_event):
     while not stop_event.is_set():

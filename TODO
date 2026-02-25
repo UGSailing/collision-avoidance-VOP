@@ -6,12 +6,12 @@
 - read in messages and put coords into csv
 
 ## map
-- make map use csv with dynamic name (related to current session)
 - try to put geofencing lines on map
 
 ## path planning
 - create "heat" map with objects out CSV
 - path algorithm
+  - CH4 paper 2021
 
 ## path following
 - ?
