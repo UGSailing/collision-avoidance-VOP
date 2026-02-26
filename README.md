@@ -1,8 +1,8 @@
 # collision avoidance VOP
 project repo for collision avoidance VOP
 
-## create environment for control
-- ```cd``` into control folder
+## create environment
+- ```cd``` into control or camera folder
 - create venv: https://packaging.python.org/en/latest/guides/installing-using-pip-and-virtual-environments/, follow the commands under:
   - create venv
   - activate venv
