@@ -5,3 +5,5 @@ __pycache__/
 *$py.class
 /camera/.venv
 /camera/calib_cam0_imgs
+/camera/output.mp4
+/camera/calib_cam0.yaml
