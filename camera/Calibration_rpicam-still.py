@@ -7,75 +7,112 @@ import subprocess
 import numpy as np
 import cv2
 
+import subprocess
+import time
+
+def start_preview(camera_id: int, width: int, height: int):
+    # -t 0 = oneindig
+    # --qt-preview = Qt venster (handig). Als dit niet werkt, laat die flag weg.
+    cmd = [
+        "rpicam-hello",
+        "-t", "0",
+        "--camera", str(camera_id),
+        "--width", str(width),
+        "--height", str(height),
+        "--qt-preview",
+    ]
+    return subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+def stop_preview(p):
+    if p is None:
+        return
+    if p.poll() is None:
+        p.terminate()
+        try:
+            p.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            p.kill()
+            p.wait(timeout=2)
+
+def capture_with_preview(out_dir, n, camera_id, width, height, settle_ms=200, delay_s=0.0):
+    os.makedirs(out_dir, exist_ok=True)
+
+    print("[PREVIEW] Starting live preview (rpicam-hello).")
+    preview = start_preview(camera_id, width, height)
+
+    i = 0
+    try:
+        while i < n:
+            key = input("Press 'c' + Enter to capture, 'q' + Enter to quit: ").strip().lower()
+            if key == "q":
+                break
+            if key != "c":
+                continue
+
+            # stop preview so camera is free
+            stop_preview(preview)
+            time.sleep(0.2)  # tiny release delay
+
+            fname = os.path.join(out_dir, f"img_{i:03d}.jpg")
+            cmd = [
+                "rpicam-still",
+                "--camera", str(camera_id),
+                "--output", fname,
+                "--timeout", str(settle_ms),
+                "--width", str(width),
+                "--height", str(height),
+                "--nopreview",
+                "--denoise", "off",
+                "--quality", "95",
+            ]
+            print("  ", " ".join(cmd))
+            code, out, err = run(cmd, timeout=max(10, int(settle_ms/1000) + 10))
+            if code != 0 or not os.path.exists(fname):
+                print("[ERROR] capture failed:", (err.strip() or out.strip()))
+                # probeer preview terug te starten zodat je niet “blind” valt
+                preview = start_preview(camera_id, width, height)
+                continue
+
+            print(f"[OK] {fname}")
+            i += 1
+
+            if delay_s > 0:
+                time.sleep(delay_s)
+
+            # restart preview
+            preview = start_preview(camera_id, width, height)
+
+    finally:
+        stop_preview(preview)
+
+    return i
 def run(cmd, timeout=30):
+
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     return r.returncode, r.stdout, r.stderr
 
-def _open_preview(camera_id, width, height):
-    # Probeer V4L2 backend eerst (meestal correct op Pi met libcamera-v4l2)
-    cap = cv2.VideoCapture(camera_id, cv2.CAP_V4L2)
-    if not cap.isOpened():
-        cap.release()
-        cap = cv2.VideoCapture(camera_id)
-
-    if not cap.isOpened():
-        return None
-
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-    return cap
-
-
-def capture_images_preview_rpicam(out_dir, n, camera_id, width, height, settle_ms, delay_s):
+def capture_images_keypress_rpicam(out_dir, n, camera_id, width, height, settle_ms, delay_s):
     os.makedirs(out_dir, exist_ok=True)
-    print(f"[CAPTURE] Live preview + rpicam-still capture: need {n} images from camera {camera_id} -> {out_dir}")
-    print("Controls: 'c' = capture, 'q' = quit")
-
-    cap = _open_preview(camera_id, width, height)
-    if cap is None:
-        print("[ERROR] Could not open preview (cv2.VideoCapture).")
-        return False
-
-    cv2.namedWindow("PREVIEW (press c to capture)", cv2.WINDOW_NORMAL)
+    print(f"[CAPTURE] rpicam-still key capture: need {n} images from camera {camera_id} -> {out_dir}")
+    print("Controls: type 'c' + Enter = capture, 'q' + Enter = quit")
 
     i = 0
-    last_frame = None
-
     while i < n:
-        ret, frame = cap.read()
-        if ret:
-            last_frame = frame
-            # Kleine HUD
-            hud = frame.copy()
-            cv2.putText(hud, f"{i}/{n}  |  c=capture  q=quit", (20, 40),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2, cv2.LINE_AA)
-            cv2.imshow("PREVIEW (press c to capture)", hud)
-        else:
-            # Als preview even faalt, toon laatste frame of zwart
-            if last_frame is None:
-                blank = np.zeros((height, width, 3), dtype=np.uint8)
-                cv2.putText(blank, "No preview frame...", (30, 60),
-                            cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2, cv2.LINE_AA)
-                cv2.imshow("PREVIEW (press c to capture)", blank)
-
-        k = cv2.waitKey(1) & 0xFF
-
-        if k == ord('q'):
+        s = input(f"[{i}/{n}] > ").strip().lower()
+        if s == "q":
             print("[CAPTURE] Quit by user.")
             break
-
-        if k != ord('c'):
+        if s != "c":
             continue
 
-        # Release preview before calling rpicam-still (camera is meestal exclusive)
-        cap.release()
-
         fname = os.path.join(out_dir, f"img_{i:03d}.jpg")
+
+        # IMPORTANT: use auto exposure by NOT forcing shutter/gain/awbgains
         cmd = [
             "rpicam-still",
             "--camera", str(camera_id),
             "--output", fname,
-            "--timeout", str(settle_ms),     # AE/AWB settle
+            "--timeout", str(settle_ms),     # let AE/AWB settle
             "--width", str(width),
             "--height", str(height),
             "--nopreview",
@@ -88,26 +125,16 @@ def capture_images_preview_rpicam(out_dir, n, camera_id, width, height, settle_m
 
         if code != 0 or not os.path.exists(fname):
             print("[ERROR] capture failed:", (err.strip() or out.strip()))
-            print("[HINT] If you see 'device busy', preview didn't release cleanly.")
-            cv2.destroyAllWindows()
+            print("Fix camera/exposure first. Aborting.")
             return False
 
         print(f"[OK] {fname} ({os.path.getsize(fname)} bytes)")
         i += 1
-
         if delay_s > 0:
             time.sleep(delay_s)
 
-        # Re-open preview after capture
-        cap = _open_preview(camera_id, width, height)
-        if cap is None:
-            print("[ERROR] Could not re-open preview after capture.")
-            cv2.destroyAllWindows()
-            return False
-
-    cap.release()
-    cv2.destroyAllWindows()
     return i >= 10
+
 def calibrate(images, board_cols, board_rows, square_size_m, show=False):
     pattern_size = (board_cols, board_rows)
 
@@ -210,9 +237,11 @@ def main():
     args = ap.parse_args()
 
     if not args.use_existing:
-            ok = capture_images_preview_rpicam(args.dir, args.capture, args.camera, args.w, args.h, args.settle_ms, args.delay)        
-            if not ok:
-                return
+        # Kies hier met live preview of zonder
+        ok = capture_with_preview(args.dir, args.capture, args.camera, args.w, args.h, args.settle_ms, args.delay)
+        #ok = capture_images_keypress_rpicam(args.dir, args.capture, args.camera, args.w, args.h, args.settle_ms, args.delay)
+        if not ok:
+            return
 
     images = sorted(glob.glob(os.path.join(args.dir, "*.jpg")))
     if not images:
