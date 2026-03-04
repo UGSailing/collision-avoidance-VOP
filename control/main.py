@@ -68,7 +68,7 @@ if __name__ == "__main__":
     stop_event = threading.Event()
 
     # Start background threads for logic loops
-    threading.Thread(target=collection_loop, args=(stop_event, run_dir), daemon=True).start()
+    #threading.Thread(target=collection_loop, args=(stop_event, run_dir), daemon=True).start()
     threading.Thread(target=planning_loop, args=(stop_event, run_dir), daemon=True).start()
     threading.Thread(target=execution_loop, args=(stop_event, run_dir), daemon=True).start()
 
