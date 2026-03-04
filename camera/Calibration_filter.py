@@ -6,6 +6,8 @@ import subprocess
 
 import cv2
 import numpy as np
+import yaml
+
 
 ### python3 Calibration_filter.py --calib calib_cam0.yaml --camera 0 --out captures --alpha 0
 
@@ -14,30 +16,14 @@ def run(cmd, timeout=30):
     return r.returncode, r.stdout, r.stderr
 
 def load_calib_yaml(path: str):
-    fs = cv2.FileStorage(path, cv2.FILE_STORAGE_READ)
-    if not fs.isOpened():
-        raise SystemExit(f"Could not open calibration file: {path}")
+    with open(path, "r") as f:
+        data = yaml.safe_load(f)
 
-    node = fs.getNode("image_size")
-    if node.empty():
-        w = int(fs.getNode("image_width").real())
-        h = int(fs.getNode("image_height").real())
-    else:
-        w = int(node.at(0).real())
-        h = int(node.at(1).real())
+    w, h = data["image_size"]
+    K = np.array(data["K"], dtype=np.float64)
+    dist = np.array(data["dist"], dtype=np.float64).reshape(-1, 1)
 
-    K = fs.getNode("K").mat()
-    dist = fs.getNode("dist").mat()
-    fs.release()
-
-    if K is None or K.size == 0:
-        raise SystemExit("K not found or empty in YAML")
-    if dist is None or dist.size == 0:
-        raise SystemExit("dist not found or empty in YAML")
-
-    K = np.array(K, dtype=np.float64)
-    dist = np.array(dist, dtype=np.float64).reshape(-1, 1)
-    return (w, h), K, dist
+    return (int(w), int(h)), K, dist
 
 def build_undistort_maps(image_size, K, dist, alpha=0.0):
     w, h = image_size
