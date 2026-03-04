@@ -11,37 +11,121 @@ def run(cmd, timeout=30):
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     return r.returncode, r.stdout, r.stderr
 
-def capture_images(out_dir, n, camera_id, width, height, delay_s):
-    os.makedirs(out_dir, exist_ok=True)
+def _try_open_preview(camera_id, width, height):
+    # Try V4L2 first (common on Pi if libcamera-v4l2 is enabled)
+    cap = cv2.VideoCapture(camera_id, cv2.CAP_V4L2)
+    if not cap.isOpened():
+        cap.release()
+        cap = cv2.VideoCapture(camera_id)  # fallback
+    if not cap.isOpened():
+        cap.release()
+        return None
 
-    print(f"[CAPTURE] Taking {n} images from camera {camera_id} into {out_dir}")
-    for i in range(n):
-        fname = os.path.join(out_dir, f"img_{i:03d}.jpg")
-        cmd = [
-            "rpicam-still",
-            "--camera", str(camera_id),
-            "--output", fname,
-            "--timeout", "200",             # short capture delay
-            "--width", str(width),
-            "--height", str(height),
-            "--nopreview",
-            "--denoise", "off",
-            "--awbgains", "1.0,1.0",        # keep stable-ish (optional)
-            "--shutter", "5000",            # 5ms (tweak for blur/light)
-            "--gain", "2.0"                 # tweak
-        ]
-        print("  ", " ".join(cmd))
-        code, out, err = run(cmd, timeout=20)
-        if code != 0 or not os.path.exists(fname):
-            print("[ERROR] capture failed:", err.strip() or out.strip())
-            print("Stop. Fix exposure/light/camera first.")
-            return False
-        print(f"[OK] {fname} ({os.path.getsize(fname)} bytes)")
-        time.sleep(delay_s)
-    return True
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+    return cap
+
+def capture_images_keypress(out_dir, n, camera_id, width, height):
+    os.makedirs(out_dir, exist_ok=True)
+    print(f"[CAPTURE] Keypress capture: need {n} images from camera {camera_id} -> {out_dir}")
+    print("Controls: 'c' = capture, 'q' = quit")
+
+    # Try a live preview using OpenCV
+    cap = _try_open_preview(camera_id, width, height)
+
+    i = 0
+    if cap is not None:
+        win = "preview (press 'c' to capture, 'q' to quit)"
+        cv2.namedWindow(win, cv2.WINDOW_NORMAL)
+
+        while i < n:
+            ret, frame = cap.read()
+            if not ret:
+                print("[WARN] Preview frame grab failed. Switching to terminal key capture.")
+                break
+
+            # simple overlay
+            overlay = frame.copy()
+            cv2.putText(
+                overlay,
+                f"{i}/{n}  press 'c' to capture",
+                (20, 40),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1.0,
+                (255, 255, 255),
+                2,
+                cv2.LINE_AA,
+            )
+            cv2.imshow(win, overlay)
+
+            k = cv2.waitKey(1) & 0xFF
+            if k == ord('q'):
+                print("[CAPTURE] Quit by user.")
+                break
+            if k == ord('c'):
+                fname = os.path.join(out_dir, f"img_{i:03d}.jpg")
+                cmd = [
+                    "rpicam-still",
+                    "--camera", str(camera_id),
+                    "--output", fname,
+                    "--timeout", "200",
+                    "--width", str(width),
+                    "--height", str(height),
+                    "--nopreview",
+                    "--denoise", "off",
+                    "--awbgains", "1.0,1.0",
+                    "--shutter", "5000",
+                    "--gain", "2.0"
+                ]
+                print("  ", " ".join(cmd))
+                code, out, err = run(cmd, timeout=20)
+                if code != 0 or not os.path.exists(fname):
+                    print("[ERROR] capture failed:", err.strip() or out.strip())
+                    print("Stop. Fix exposure/light/camera first.")
+                    cap.release()
+                    cv2.destroyAllWindows()
+                    return False
+                print(f"[OK] {fname} ({os.path.getsize(fname)} bytes)")
+                i += 1
+
+        cap.release()
+        cv2.destroyAllWindows()
+
+    # If preview not available or it broke: terminal-driven key capture
+    if i < n:
+        print("[INFO] Terminal capture mode (no preview). Press Enter to capture, 'q' + Enter to quit.")
+        while i < n:
+            s = input(f"Capture {i}/{n} > ").strip().lower()
+            if s == 'q':
+                print("[CAPTURE] Quit by user.")
+                break
+
+            fname = os.path.join(out_dir, f"img_{i:03d}.jpg")
+            cmd = [
+                "rpicam-still",
+                "--camera", str(camera_id),
+                "--output", fname,
+                "--timeout", "200",
+                "--width", str(width),
+                "--height", str(height),
+                "--nopreview",
+                "--denoise", "off",
+                "--awbgains", "1.0,1.0",
+                "--shutter", "5000",
+                "--gain", "2.0"
+            ]
+            print("  ", " ".join(cmd))
+            code, out, err = run(cmd, timeout=20)
+            if code != 0 or not os.path.exists(fname):
+                print("[ERROR] capture failed:", err.strip() or out.strip())
+                print("Stop. Fix exposure/light/camera first.")
+                return False
+            print(f"[OK] {fname} ({os.path.getsize(fname)} bytes)")
+            i += 1
+
+    return i >= 10  # keep same "need enough images" spirit
 
 def calibrate(images, board_cols, board_rows, square_size_m, show=False):
-    # board_cols/rows are INNER corners count
     pattern_size = (board_cols, board_rows)
 
     objp = np.zeros((board_rows * board_cols, 3), np.float32)
@@ -94,7 +178,6 @@ def calibrate(images, board_cols, board_rows, square_size_m, show=False):
         objpoints, imgpoints, img_size, None, None
     )
 
-    # RMS reprojection error:
     total_err = 0.0
     total_pts = 0
     for i in range(len(objpoints)):
@@ -126,7 +209,6 @@ def save_yaml(out_path, data):
             yaml.safe_dump(payload, f, sort_keys=False)
         print(f"[SAVE] {out_path}")
     except ImportError:
-        # fallback: OpenCV FileStorage (still fine)
         fs = cv2.FileStorage(out_path, cv2.FILE_STORAGE_WRITE)
         fs.write("image_width", int(data["image_size"][0]))
         fs.write("image_height", int(data["image_size"][1]))
@@ -148,13 +230,12 @@ def main():
     ap.add_argument("--dir", default="calib_cam0_imgs", help="directory to store images")
     ap.add_argument("--w", type=int, default=1920, help="capture width")
     ap.add_argument("--h", type=int, default=1080, help="capture height")
-    ap.add_argument("--delay", type=float, default=0.6, help="delay between captures")
     ap.add_argument("--use-existing", action="store_true", help="skip capture and use existing jpgs in --dir")
     ap.add_argument("--show", action="store_true", help="show detected corners briefly")
     args = ap.parse_args()
 
     if not args.use_existing:
-        ok = capture_images(args.dir, args.capture, args.camera, args.w, args.h, args.delay)
+        ok = capture_images_keypress(args.dir, args.capture, args.camera, args.w, args.h)
         if not ok:
             return
 
