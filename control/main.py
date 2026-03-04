@@ -5,13 +5,9 @@ import sys
 from pathlib import Path
 from datetime import datetime
 from data_collection import read_CAN
-from path_planning import update_path, OccupancyMapper
+from path_planning import update_path, OccupancyMapper, config
 from path_execution import follow_path
 
-PATH_UPDATE_INTERVAL = 3 # seconds
-GRID_RESOLUTION = 0.2 # meters per grid cell
-GRID_SIZE = 100 # meters
-HITBOX_RADIUS = 2 # meters around each obstacle point
 
 def collection_loop(stop_event: threading.Event, run_dir: Path):
     while not stop_event.is_set():
@@ -23,7 +19,7 @@ def collection_loop(stop_event: threading.Event, run_dir: Path):
 
 def planning_loop(stop_event: threading.Event, run_dir: Path):
     # initialize the mapper
-    mapper = OccupancyMapper(resolution=GRID_RESOLUTION, grid_size=GRID_SIZE, hitbox_radius=HITBOX_RADIUS)
+    mapper = OccupancyMapper(resolution=config.GRID_RESOLUTION, grid_size=config.GRID_SIZE, hitbox_radius=config.HITBOX_RADIUS)
     grid = mapper.create_grid(run_dir / 'points.csv')
 
     while not stop_event.is_set():
@@ -37,7 +33,7 @@ def planning_loop(stop_event: threading.Event, run_dir: Path):
             print(f"Path updated. Obstacles detected: {grid.sum() > 0}")
         except Exception as e:
             print(f"Path planning error: {e}")
-        stop_event.wait(PATH_UPDATE_INTERVAL)
+        stop_event.wait(config.PATH_UPDATE_INTERVAL)
 
 def execution_loop(stop_event: threading.Event, run_dir: Path):
     while not stop_event.is_set():
@@ -62,10 +58,10 @@ if __name__ == "__main__":
 
     # seed data with initial obstacles and destination
     data = {
-        'id': [0, 1, 2, 0, 0, 1],
-        'category': ['gps', 'gps', 'gps', 'destination', 'camera', 'camera'],
-        'latitude': [51.011466, 51.011401, 51.011315, 51.011504, 51.011402, 51.011446],
-        'longitude': [3.708731, 3.709055, 3.709353, 3.708728, 3.709157, 3.708945]
+        'id': [0, 1, 2, 0, 0, 1, 2, 3, 4],
+        'category': ['gps', 'gps', 'gps', 'destination', 'camera', 'camera', 'camera', 'camera', 'camera'],
+        'latitude': [51.011466, 51.011401, 51.011315, 51.011504, 51.011453, 51.011412, 51.011340, 51.011485, 51.011394],
+        'longitude': [3.708731, 3.709055, 3.709353, 3.708728, 3.708779, 3.708822, 3.708969, 3.708916, 3.709079]
     }
     pd.DataFrame(data).to_csv(points_file, index=False)
 

@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from scipy.ndimage import binary_dilation
-from .constants import METERS_PER_DEGREE_LAT
+from . import config
 
 class OccupancyMapper:
     def __init__(self, resolution=0.2, grid_size=50, hitbox_radius=0.3) -> None:
@@ -35,9 +35,9 @@ class OccupancyMapper:
             self.origin_lat, self.origin_lon = lat, lon
             
         # standard equirectangular projection
-        y = (lat - self.origin_lat) * METERS_PER_DEGREE_LAT
+        y = (lat - self.origin_lat) * config.METERS_PER_DEGREE_LAT
         # longitude length varies based on latitude
-        x = (lon - self.origin_lon) * (METERS_PER_DEGREE_LAT * np.cos(np.radians(self.origin_lat)))
+        x = (lon - self.origin_lon) * (config.METERS_PER_DEGREE_LAT * np.cos(np.radians(self.origin_lat)))
         return x, y
 
     def _get_grid_indices(self, lat, lon) -> tuple[int, int]:
@@ -141,8 +141,8 @@ class OccupancyMapper:
         if self.origin_lat is None or self.origin_lon is None:
             origin_shifted = True
         else:
-            dy = (self.origin_lat - old_origin_lat) * METERS_PER_DEGREE_LAT / self.res
-            dx = (self.origin_lon - old_origin_lon) * (METERS_PER_DEGREE_LAT * np.cos(np.radians(self.origin_lat))) / self.res
+            dy = (self.origin_lat - old_origin_lat) * config.METERS_PER_DEGREE_LAT / self.res
+            dx = (self.origin_lon - old_origin_lon) * (config.METERS_PER_DEGREE_LAT * np.cos(np.radians(self.origin_lat))) / self.res
             if (dx**2 + dy**2) ** 0.5 > self._origin_shift_threshold_cells:
                 origin_shifted = True
 
