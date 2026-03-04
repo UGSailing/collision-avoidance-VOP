@@ -50,6 +50,27 @@ def capture_one_rpicam(camera_id, out_path, w, h, settle_ms, extra_args):
     if code != 0 or not os.path.exists(out_path):
         raise RuntimeError(err.strip() or out.strip() or "rpicam-still failed")
 
+def start_preview(camera_id: int, width: int, height: int):
+    cmd = [
+        "rpicam-hello",
+        "-t", "0",
+        "--camera", str(camera_id),
+        "--width", str(width),
+        "--height", str(height),
+        "--qt-preview",
+    ]
+    return subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+def stop_preview(p):
+    if p is None:
+        return
+    if p.poll() is None:
+        p.terminate()
+        try:
+            p.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            p.kill()
+            p.wait(timeout=2)
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--calib", default="calib_cam0.yaml", help="Path to calibration YAML")
@@ -75,6 +96,7 @@ def main():
 
     print("[INFO] Window controls: 'c' = capture, 'q' = quit")
     print(f"[INFO] rpicam camera={args.camera}, size={w}x{h}, alpha={args.alpha}, out='{args.out}'")
+    preview = start_preview(args.camera, w, h)
 
     cv2.namedWindow("RAW | UNDISTORTED", cv2.WINDOW_NORMAL)
 
@@ -82,7 +104,6 @@ def main():
     last_disp = np.zeros((h, w, 3), dtype=np.uint8)
     cv2.putText(last_disp, "Press 'c' to capture (rpicam-still)", (30, 60),
                 cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2, cv2.LINE_AA)
-
     while True:
         cv2.imshow("RAW | UNDISTORTED", last_disp)
         k = cv2.waitKey(30) & 0xFF
@@ -95,11 +116,17 @@ def main():
             raw_path = os.path.join(args.out, f"raw_{ts}_{idx:04d}.jpg")
             und_path = os.path.join(args.out, f"undist_{ts}_{idx:04d}.jpg")
 
+            stop_preview(preview)
+            time.sleep(0.2)  # camera release
+
             try:
                 capture_one_rpicam(args.camera, raw_path, w, h, args.settle_ms, extra_args)
             except Exception as e:
                 print("[ERROR] capture failed:", e)
+                preview = start_preview(args.camera, w, h)
                 continue
+
+            preview = start_preview(args.camera, w, h)
 
             frame = cv2.imread(raw_path)
             if frame is None:
@@ -132,7 +159,7 @@ def main():
 
             last_disp = disp
             idx += 1
-
+    stop_preview(preview)
     cv2.destroyAllWindows()
 
 if __name__ == "__main__":
