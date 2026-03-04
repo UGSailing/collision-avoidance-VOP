@@ -7,7 +7,7 @@ import cv2
 import numpy as np
 
 ### This script captures images from a camera, applies undistortion using calibration data from a YAML file, and saves both raw and undistorted images. It also displays a side-by-side preview of the raw and undistorted frames.
-### usage: python Calibration_filter.py --calib calib_cam0.yaml --camera 0 --out captures --backend dshow
+### usage: python undistort_capture.py --calib calib_cam0.yaml --camera 0 --out captures --backend dshow
 try:
     import yaml
 except ImportError:
@@ -15,15 +15,43 @@ except ImportError:
 
 
 def load_calib_yaml(path: str):
-    with open(path, "r", encoding="utf-8") as f:
-        data = yaml.safe_load(f)
+    # Read raw bytes first (handles weird encodings / BOM)
+    raw = open(path, "rb").read()
+
+    # Try common encodings
+    text = None
+    for enc in ("utf-8-sig", "utf-16", "utf-16le", "utf-16be", "cp1252"):
+        try:
+            text = raw.decode(enc)
+            break
+        except UnicodeDecodeError:
+            continue
+    if text is None:
+        raise SystemExit("Could not decode YAML file (unknown encoding). Save as UTF-8.")
+
+    # ---- OpenCV FileStorage YAML cleanup ----
+    # OpenCV often writes: %YAML:1.0  (not valid YAML for PyYAML)
+    # Also sometimes has a leading '---'
+    lines = text.splitlines()
+
+    if lines and lines[0].strip().startswith("%YAML:"):
+        lines = lines[1:]  # drop OpenCV header line
+        # also drop optional leading '---'
+        if lines and lines[0].strip() == "---":
+            lines = lines[1:]
+
+    cleaned = "\n".join(lines).strip()
+
+    data = yaml.safe_load(cleaned)
+    if not isinstance(data, dict):
+        raise SystemExit("Parsed YAML but got no dict. File content is not what we expect.")
 
     # Expecting your structure
     w, h = data["image_size"]
     K = np.array(data["K"], dtype=np.float64)
     dist = np.array(data["dist"], dtype=np.float64).reshape(-1, 1)
 
-    return (w, h), K, dist
+    return (int(w), int(h)), K, dist
 
 
 def build_undistort_maps(image_size, K, dist, alpha=0.0):
