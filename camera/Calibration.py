@@ -43,7 +43,15 @@ def capture_images_keypress(out_dir, n, camera_id, width, height):
             if not ret:
                 print("[WARN] Preview frame grab failed. Switching to terminal key capture.")
                 break
+            # ---- FIX GREEN PREVIEW (YUYV/YUV -> BGR) ----
+            # Many Pi/V4L2 setups deliver YUYV as (H,W,2). Convert it.
+            if frame is not None and frame.ndim == 3 and frame.shape[2] == 2:
+                frame = cv2.cvtColor(frame, cv2.COLOR_YUV2BGR_YUY2)
 
+            # Some pipelines deliver RGB instead of BGR (rare, but happens)
+            # If colors still look swapped after the YUYV fix, uncomment:
+            # frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            # ---------------------------------------------
             # simple overlay
             overlay = frame.copy()
             cv2.putText(
