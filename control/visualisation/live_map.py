@@ -51,7 +51,7 @@ app.layout = html.Div([
     # the interval component triggers a function call automatically
     dcc.Interval(
         id='interval-updater',
-        interval=2000, 
+        interval=500, 
         n_intervals=0
     )
 ])
@@ -108,4 +108,4 @@ def update_map(n):
 
 if __name__ == '__main__':
     # debug=True allows for hot-reloading if you change the Python code
-    app.run(debug=True)
+    app.run(debug=False)
