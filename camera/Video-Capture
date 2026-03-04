@@ -1,0 +1,68 @@
+#!/usr/bin/env python3
+import os
+import cv2
+import time
+import argparse
+
+def main():
+    ap = argparse.ArgumentParser("Live view + keypress capture for calibration")
+    ap.add_argument("--device", type=int, default=0, help="Video device index (default 0)")
+    ap.add_argument("--outdir", default="calib_imgs", help="Output directory")
+    ap.add_argument("--w", type=int, default=1920, help="Width request")
+    ap.add_argument("--h", type=int, default=1080, help="Height request")
+    ap.add_argument("--prefix", default="img", help="Filename prefix")
+    args = ap.parse_args()
+
+    os.makedirs(args.outdir, exist_ok=True)
+
+    cap = cv2.VideoCapture(args.device, cv2.CAP_V4L2)
+    if not cap.isOpened():
+        raise RuntimeError(f"Could not open camera device index {args.device}")
+
+    # Request resolution (not always honored)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, args.w)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, args.h)
+
+    print("[INFO] Controls:")
+    print("  SPACE  -> save frame")
+    print("  q / ESC -> quit")
+
+    idx = 0
+    last_save_t = 0.0
+
+    while True:
+        ok, frame = cap.read()
+        if not ok or frame is None:
+            print("[WARN] frame read failed")
+            time.sleep(0.05)
+            continue
+
+        # Small overlay
+        h, w = frame.shape[:2]
+        cv2.putText(frame, f"{w}x{h}  saved:{idx}", (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255,255,255), 2, cv2.LINE_AA)
+
+        cv2.imshow("calib_live", frame)
+        key = cv2.waitKey(1) & 0xFF
+
+        if key in (27, ord('q')):  # ESC or q
+            break
+
+        if key == 32:  # SPACE
+            # debounce
+            now = time.time()
+            if now - last_save_t < 0.2:
+                continue
+            last_save_t = now
+
+            fname = os.path.join(args.outdir, f"{args.prefix}_{idx:03d}.jpg")
+            # Save as-is
+            cv2.imwrite(fname, frame, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
+            print(f"[SAVE] {fname}")
+            idx += 1
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+if __name__ == "__main__":
+    main()
