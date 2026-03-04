@@ -210,8 +210,9 @@ def main():
     args = ap.parse_args()
 
     if not args.use_existing:
-            ok = capture_images_preview_rpicam(args.dir, args.capture, args.camera, args.w, args.h, args.settle_ms, args.delay)        if not ok:
-            return
+            ok = capture_images_preview_rpicam(args.dir, args.capture, args.camera, args.w, args.h, args.settle_ms, args.delay)        
+            if not ok:
+                return
 
     images = sorted(glob.glob(os.path.join(args.dir, "*.jpg")))
     if not images:
