@@ -2,33 +2,32 @@
 import os
 import time
 import argparse
+import subprocess
 
 import cv2
 import numpy as np
 
-### This script captures images from a camera, applies undistortion using calibration data from a YAML file, and saves both raw and undistorted images. It also displays a side-by-side preview of the raw and undistorted frames.
-### usage: python undistort_capture.py --calib calib_cam0.yaml --camera 0 --out captures --backend dshow
+### python3 Calibration_filter.py --calib calib_cam0.yaml --camera 0 --out captures --alpha 0
 
+def run(cmd, timeout=30):
+    r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    return r.returncode, r.stdout, r.stderr
 
 def load_calib_yaml(path: str):
     fs = cv2.FileStorage(path, cv2.FILE_STORAGE_READ)
     if not fs.isOpened():
         raise SystemExit(f"Could not open calibration file: {path}")
 
-    # image_size can be a sequence or separate width/height depending on your writer
     node = fs.getNode("image_size")
     if node.empty():
-        # fallback if stored as width/height keys
         w = int(fs.getNode("image_width").real())
         h = int(fs.getNode("image_height").real())
     else:
-        # typically a 2-element sequence
         w = int(node.at(0).real())
         h = int(node.at(1).real())
 
     K = fs.getNode("K").mat()
     dist = fs.getNode("dist").mat()
-
     fs.release()
 
     if K is None or K.size == 0:
@@ -38,99 +37,117 @@ def load_calib_yaml(path: str):
 
     K = np.array(K, dtype=np.float64)
     dist = np.array(dist, dtype=np.float64).reshape(-1, 1)
-
     return (w, h), K, dist
 
 def build_undistort_maps(image_size, K, dist, alpha=0.0):
     w, h = image_size
-    # alpha=0 => crop to valid pixels, alpha=1 => keep all pixels (black borders)
     newK, roi = cv2.getOptimalNewCameraMatrix(K, dist, (w, h), alpha, (w, h))
     map1, map2 = cv2.initUndistortRectifyMap(
         K, dist, R=None, newCameraMatrix=newK, size=(w, h), m1type=cv2.CV_16SC2
     )
     return newK, roi, map1, map2
 
+def capture_one_rpicam(camera_id, out_path, w, h, settle_ms, extra_args):
+    cmd = [
+        "rpicam-still",
+        "--camera", str(camera_id),
+        "--output", out_path,
+        "--timeout", str(settle_ms),
+        "--width", str(w),
+        "--height", str(h),
+        "--nopreview",
+        "--denoise", "off",
+        "--quality", "95",
+    ] + extra_args
+
+    code, out, err = run(cmd, timeout=max(10, int(settle_ms/1000) + 10))
+    if code != 0 or not os.path.exists(out_path):
+        raise RuntimeError(err.strip() or out.strip() or "rpicam-still failed")
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--calib", default="calib_cam0.yaml", help="Path to calibration YAML")
-    ap.add_argument("--camera", type=int, default=0, help="Camera index")
+    ap.add_argument("--camera", type=int, default=0, help="Camera index for rpicam-still")
     ap.add_argument("--out", default="captures", help="Output folder")
     ap.add_argument("--alpha", type=float, default=0.0, help="0=crop, 1=keep all (black borders)")
-    ap.add_argument("--backend", default="auto", choices=["auto", "dshow", "msmf"], help="Windows capture backend")
+    ap.add_argument("--settle-ms", type=int, default=1500, help="AE/AWB settle time for each still")
+    ap.add_argument("--w", type=int, default=0, help="Override width (0 = use calib width)")
+    ap.add_argument("--h", type=int, default=0, help="Override height (0 = use calib height)")
+    ap.add_argument("--show-undist-only", action="store_true", help="Show only undistorted view")
+    ap.add_argument("--extra", default="", help="Extra rpicam-still args as one string (advanced)")
     args = ap.parse_args()
 
     os.makedirs(args.out, exist_ok=True)
 
-    (w, h), K, dist = load_calib_yaml(args.calib)
-    newK, roi, map1, map2 = build_undistort_maps((w, h), K, dist, alpha=args.alpha)
+    (cw, ch), K, dist = load_calib_yaml(args.calib)
+    w = args.w if args.w > 0 else cw
+    h = args.h if args.h > 0 else ch
 
-    # Pick a backend (Windows sometimes gives weird colors with MSMF)
-    if args.backend == "dshow":
-        cap = cv2.VideoCapture(args.camera, cv2.CAP_DSHOW)
-    elif args.backend == "msmf":
-        cap = cv2.VideoCapture(args.camera, cv2.CAP_MSMF)
-    else:
-        cap = cv2.VideoCapture(args.camera)
+    _, roi, map1, map2 = build_undistort_maps((w, h), K, dist, alpha=args.alpha)
 
-    if not cap.isOpened():
-        raise SystemExit(f"Could not open camera {args.camera}")
+    extra_args = args.extra.split() if args.extra.strip() else []
 
-    # Force Full HD
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, w)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
+    print("[INFO] Window controls: 'c' = capture, 'q' = quit")
+    print(f"[INFO] rpicam camera={args.camera}, size={w}x{h}, alpha={args.alpha}, out='{args.out}'")
 
-    print("[INFO] Press 'c' to capture. Press 'q' to quit.")
-    print(f"[INFO] Using {w}x{h}, alpha={args.alpha}, output='{args.out}'")
+    cv2.namedWindow("RAW | UNDISTORTED", cv2.WINDOW_NORMAL)
 
     idx = 0
+    last_disp = np.zeros((h, w, 3), dtype=np.uint8)
+    cv2.putText(last_disp, "Press 'c' to capture (rpicam-still)", (30, 60),
+                cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2, cv2.LINE_AA)
+
     while True:
-        ok, frame = cap.read()
-        if not ok:
-            print("[WARN] Frame grab failed")
-            time.sleep(0.05)
-            continue
+        cv2.imshow("RAW | UNDISTORTED", last_disp)
+        k = cv2.waitKey(30) & 0xFF
 
-        # Ensure size matches calibration
-        if frame.shape[1] != w or frame.shape[0] != h:
-            frame = cv2.resize(frame, (w, h), interpolation=cv2.INTER_AREA)
-
-        undist = cv2.remap(frame, map1, map2, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
-
-        # Optional crop to ROI when alpha=0 (cleaner view)
-        if args.alpha == 0.0:
-            x, y, rw, rh = roi
-            undist_view = undist[y:y+rh, x:x+rw]
-        else:
-            undist_view = undist
-
-        # Show side-by-side (raw | undist)
-        # Make same height for display
-        if undist_view.shape[0] != frame.shape[0]:
-            disp_und = cv2.resize(undist_view, (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_AREA)
-        else:
-            disp_und = undist_view
-
-        disp = np.hstack([frame, disp_und])
-        cv2.imshow("RAW | UNDISTORTED", disp)
-
-        k = cv2.waitKey(1) & 0xFF
         if k == ord("q"):
             break
+
         if k == ord("c"):
             ts = time.strftime("%Y%m%d_%H%M%S")
             raw_path = os.path.join(args.out, f"raw_{ts}_{idx:04d}.jpg")
             und_path = os.path.join(args.out, f"undist_{ts}_{idx:04d}.jpg")
 
-            cv2.imwrite(raw_path, frame)
-            cv2.imwrite(und_path, undist_view)
+            try:
+                capture_one_rpicam(args.camera, raw_path, w, h, args.settle_ms, extra_args)
+            except Exception as e:
+                print("[ERROR] capture failed:", e)
+                continue
+
+            frame = cv2.imread(raw_path)
+            if frame is None:
+                print("[ERROR] cv2.imread failed on captured file")
+                continue
+
+            # Ensure expected size (rpicam should already match, but just in case)
+            if frame.shape[1] != w or frame.shape[0] != h:
+                frame = cv2.resize(frame, (w, h), interpolation=cv2.INTER_AREA)
+
+            undist = cv2.remap(frame, map1, map2, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+
+            if args.alpha == 0.0:
+                x, y, rw, rh = roi
+                und_view = undist[y:y+rh, x:x+rw]
+            else:
+                und_view = undist
+
+            cv2.imwrite(und_path, und_view)
             print(f"[SAVE] {raw_path}")
             print(f"[SAVE] {und_path}")
+
+            if args.show_undist_only:
+                disp = und_view
+            else:
+                disp_und = und_view
+                if disp_und.shape[0] != frame.shape[0]:
+                    disp_und = cv2.resize(disp_und, (frame.shape[1], frame.shape[0]), interpolation=cv2.INTER_AREA)
+                disp = np.hstack([frame, disp_und])
+
+            last_disp = disp
             idx += 1
 
-    cap.release()
     cv2.destroyAllWindows()
-
 
 if __name__ == "__main__":
     main()
