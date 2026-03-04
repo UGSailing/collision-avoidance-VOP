@@ -8,51 +8,38 @@ import numpy as np
 
 ### This script captures images from a camera, applies undistortion using calibration data from a YAML file, and saves both raw and undistorted images. It also displays a side-by-side preview of the raw and undistorted frames.
 ### usage: python undistort_capture.py --calib calib_cam0.yaml --camera 0 --out captures --backend dshow
-try:
-    import yaml
-except ImportError:
-    raise SystemExit("Missing dependency: pyyaml. Install with: pip install pyyaml")
 
 
 def load_calib_yaml(path: str):
-    # Read raw bytes first (handles weird encodings / BOM)
-    raw = open(path, "rb").read()
+    fs = cv2.FileStorage(path, cv2.FILE_STORAGE_READ)
+    if not fs.isOpened():
+        raise SystemExit(f"Could not open calibration file: {path}")
 
-    # Try common encodings
-    text = None
-    for enc in ("utf-8-sig", "utf-16", "utf-16le", "utf-16be", "cp1252"):
-        try:
-            text = raw.decode(enc)
-            break
-        except UnicodeDecodeError:
-            continue
-    if text is None:
-        raise SystemExit("Could not decode YAML file (unknown encoding). Save as UTF-8.")
+    # image_size can be a sequence or separate width/height depending on your writer
+    node = fs.getNode("image_size")
+    if node.empty():
+        # fallback if stored as width/height keys
+        w = int(fs.getNode("image_width").real())
+        h = int(fs.getNode("image_height").real())
+    else:
+        # typically a 2-element sequence
+        w = int(node.at(0).real())
+        h = int(node.at(1).real())
 
-    # ---- OpenCV FileStorage YAML cleanup ----
-    # OpenCV often writes: %YAML:1.0  (not valid YAML for PyYAML)
-    # Also sometimes has a leading '---'
-    lines = text.splitlines()
+    K = fs.getNode("K").mat()
+    dist = fs.getNode("dist").mat()
 
-    if lines and lines[0].strip().startswith("%YAML:"):
-        lines = lines[1:]  # drop OpenCV header line
-        # also drop optional leading '---'
-        if lines and lines[0].strip() == "---":
-            lines = lines[1:]
+    fs.release()
 
-    cleaned = "\n".join(lines).strip()
+    if K is None or K.size == 0:
+        raise SystemExit("K not found or empty in YAML")
+    if dist is None or dist.size == 0:
+        raise SystemExit("dist not found or empty in YAML")
 
-    data = yaml.safe_load(cleaned)
-    if not isinstance(data, dict):
-        raise SystemExit("Parsed YAML but got no dict. File content is not what we expect.")
+    K = np.array(K, dtype=np.float64)
+    dist = np.array(dist, dtype=np.float64).reshape(-1, 1)
 
-    # Expecting your structure
-    w, h = data["image_size"]
-    K = np.array(data["K"], dtype=np.float64)
-    dist = np.array(data["dist"], dtype=np.float64).reshape(-1, 1)
-
-    return (int(w), int(h)), K, dist
-
+    return (w, h), K, dist
 
 def build_undistort_maps(image_size, K, dist, alpha=0.0):
     w, h = image_size
