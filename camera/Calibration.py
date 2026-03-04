@@ -32,6 +32,8 @@ def capture_images_keypress(out_dir, n, camera_id, width, height):
 
     # Try a live preview using OpenCV
     cap = _try_open_preview(camera_id, width, height)
+    cap.set(cv2.CAP_PROP_CONVERT_RGB, 1)
+    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
 
     i = 0
     if cap is not None:
