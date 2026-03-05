@@ -1,4 +1,5 @@
 import argparse
+import logging
 import os
 import dash
 from dash import dcc, html
@@ -107,5 +108,5 @@ def update_map(n):
     return fig
 
 if __name__ == '__main__':
-    # debug=True allows for hot-reloading if you change the Python code
-    app.run(debug=False)
+    logging.getLogger('werkzeug').setLevel(logging.CRITICAL) # only log critical errors to avoid cluttering the console
+    app.run(debug=False) # debug=True allows for hot-reloading if you change the Python code
