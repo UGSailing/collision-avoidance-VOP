@@ -1,17 +1,28 @@
-# Camera & detection
+# To do
+
+## Reporting
+- project goals
+- presentation
+- report
+- poster
+
+## Camera & detection
 - ?
-# Control
-## data collection
-- CAN interface
-- read in messages and put coords into csv
 
-## map
-- try to put geofencing lines on map
+## Control
+### general
+- geofencing
+- set a new destination with command in ```main.py```
 
-## path planning
-- create "heat" map with objects out CSV
-- path algorithm
-  - CH4 paper 2021
+### data collection
+- read in CAN & gps messages and put coords into csv
+  - test with GPS
+  - test with CAN
+- other ways to store 
 
-## path following
+### path planning
+- granular occupancy map (with different strengths depending on object type?)
+- better path algorithm
+
+### path following
 - ?
