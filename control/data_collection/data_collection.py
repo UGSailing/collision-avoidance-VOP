@@ -3,13 +3,7 @@ import pynmea2
 import pandas as pd
 import time
 from pathlib import Path
-from can_communication import BoatCANInterface
-
-
-"""Vibecode for reading both CAN and GPS data, and writing it to points.csv in a structured way."""
-
-
-
+from path_execution import BoatCANInterface
 
 # 1. Initialize CAN Bus
 can_bus = BoatCANInterface(channel='can0', bustype='socketcan', bitrate=1000000)

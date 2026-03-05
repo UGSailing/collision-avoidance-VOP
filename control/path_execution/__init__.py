@@ -1,6 +1,2 @@
-# TODO
-
-def follow_path(path):
-    """Follow the path specified in path_file."""
-    # TODO
-    print(f"Following path from {path}\\path.csv...")
+from .can_communication import BoatCANInterface
+from .dummy import follow_path

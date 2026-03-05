@@ -4,3 +4,6 @@ plotly
 matplotlib
 numpy
 scipy
+can
+serial
+pynmea2

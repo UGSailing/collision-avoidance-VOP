@@ -1,5 +1,4 @@
 import can
-import struct
 
 class BoatCANInterface:
     def __init__(self, channel='can0', bustype='socketcan', bitrate=1000000):

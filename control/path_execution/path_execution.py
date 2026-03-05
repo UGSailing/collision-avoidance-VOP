@@ -1,6 +1,5 @@
 import pandas as pd
 import math
-import time
 from can_communication import BoatCANInterface
 
 
