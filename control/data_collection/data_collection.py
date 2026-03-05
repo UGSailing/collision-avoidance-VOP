@@ -1,102 +1,66 @@
+import io
 import serial
 import pynmea2
 import pandas as pd
-import time
 from pathlib import Path
 from path_execution import BoatCANInterface
+import config
 
-# 1. Initialize CAN Bus
-can_bus = BoatCANInterface(channel='can0', bustype='socketcan', bitrate=1000000)
 
-# 2. Initialize GPS Serial Connection
-# NOTE: Change '/dev/ttyACM0' to your actual simpleRTK3B port (e.g., 'COM3' on Windows)
-# 115200 is the standard baud rate for Ardusimple boards
-try:
-    gps_serial = serial.Serial('/dev/ttyACM0', baudrate=115200, timeout=0.1)
-    print("GPS Serial connection established.")
-except serial.SerialException as e:
-    print(f"Warning: GPS not connected. {e}")
-    gps_serial = None
+class DataCollector:
+    def __init__(self, run_dir):
+        self.can_bus = BoatCANInterface(channel=config.CAN_CHANNEL, bustype=config.CAN_BUSTYPE, bitrate=config.CAN_BITRATE)
 
-# We store the latest known values here to bundle them together
-boat_state = {
-    'latitude': None,
-    'longitude': None,
-    'heading': None,
-    'rudder_raw': None
-}
+        try:
+            gps_serial = serial.Serial(config.GPS_PORT, baudrate=config.GPS_BAUDRATE, timeout=config.READ_TIMEOUT)
+            self.gps_reader = io.TextIOWrapper(io.BufferedRWPair(gps_serial, gps_serial))  # type: ignore[arg-type]
 
-def read_CAN_and_GPS(run_dir):
-    """
-    Reads hardware sensors and updates the state.
-    Called continuously by the collection thread in main.py.
-    """
-    global boat_state
-    updated_gps = False
+            print("GPS Serial connection established.")
+        except serial.SerialException as e:
+            print(f"Warning: GPS not connected. {e}")
 
-    # --- READ RUDDER ANGLE OVER CAN ---
-    raw_angle = can_bus.read_angle_message(timeout=0.01)
-    if raw_angle is not None:
-        boat_state['rudder_raw'] = raw_angle
-
-    # --- READ LOCATION & HEADING FROM simpleRTK3B ---
-    if gps_serial and gps_serial.in_waiting > 0:
-        # Read all available lines in the buffer
-        while gps_serial.in_waiting > 0:
-            try:
-                line = gps_serial.readline().decode('ascii', errors='replace').strip()
-                if line.startswith('$'):
-                    msg = pynmea2.parse(line)
-                    
-                    # Extract Location
-                    if msg.sentence_type in ['GGA', 'RMC']:
-                        boat_state['latitude'] = msg.latitude
-                        boat_state['longitude'] = msg.longitude
-                        updated_gps = True
-                        
-                    # Extract True Heading
-                    elif msg.sentence_type == 'HDT':
-                        boat_state['heading'] = float(msg.heading)
-                        updated_gps = True
-                        
-            except pynmea2.ParseError:
-                pass # Skip partial or corrupted NMEA lines
-
-    # --- SAVE TO CSV IF WE HAVE DATA ---
-    # We only write to the CSV if we actually have valid GPS coordinates
-    if updated_gps and boat_state['latitude'] is not None:
-        update_points_csv(run_dir)
-
-def update_points_csv(run_dir):
-    """
-    Appends the latest boat state to points.csv so the planner and execution
-    threads can access the current position and heading.
-    """
-    points_path = run_dir / 'points.csv'
+        self.run_dir = run_dir
+        self.gps_id = 0
     
-    try:
-        # Read the existing CSV
-        df = pd.read_csv(points_path)
-        
-        # Figure out the next ID
-        next_id = df['id'].max() + 1 if not df.empty else 0
-        
-        # Create the new GPS row
-        new_row = pd.DataFrame([{
-            'id': next_id,
-            'category': 'gps',
-            'latitude': boat_state['latitude'],
-            'longitude': boat_state['longitude'],
-            'heading': boat_state['heading']  # Add the heading to the CSV!
-        }])
-        
-        # Append and save
-        df = pd.concat([df, new_row], ignore_index=True)
-        df.to_csv(points_path, index=False)
-        
-    except Exception as e:
-        print(f"Error updating points.csv: {e}")
+    def update_data(self):
+        """
+        Reads hardware sensors and updates the state.
+        Called continuously by the collection thread in main.py.
+        """
+        self._read_gps()
+        self._read_can()
 
-# In main.py, your collection_loop will just call:
-def read_CAN(run_dir):
-    read_CAN_and_GPS(run_dir)
+    def _read_gps(self):
+        """
+            Reads GPS data and updates the points.csv file with the latest position and heading.
+        """
+        # credit: https://github.com/Knio/pynmea2/blob/master/examples/read_serial.py
+        try:
+            line = self.gps_reader.readline()
+            msg = pynmea2.parse(line)
+        except serial.SerialException as e:
+            print('GPS error: {}'.format(e))
+            return
+        except pynmea2.ParseError as e:
+            print('Parse error: {}'.format(e))
+            return
+                
+        try:
+            new_row = pd.DataFrame([{
+                'id': self.gps_id,
+                'category': 'gps',
+                'latitude': msg.latitude,
+                'longitude': msg.longitude,
+                'heading': msg.heading
+            }])
+
+            self.gps_id += 1
+
+            new_row.to_csv(self.run_dir / 'points.csv', mode='a', header=False, index=False)
+            
+        except Exception as e:
+            print(f"Error updating points.csv: {e}")
+
+    def _read_can(self):
+        # TODO read CAN and update CSV
+        pass

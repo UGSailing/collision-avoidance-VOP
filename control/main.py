@@ -4,15 +4,16 @@ import subprocess
 import sys
 from pathlib import Path
 from datetime import datetime
-from data_collection import read_CAN
+from data_collection import DataCollector
 from path_planning import update_path, OccupancyMapper, config
 from path_execution import follow_path
 
 
 def collection_loop(stop_event: threading.Event, run_dir: Path):
+    collector = DataCollector(run_dir)
     while not stop_event.is_set():
         try:
-            read_CAN(run_dir)
+            collector.update_data()
             stop_event.wait(10)
         except Exception as e:
             print(f"Data collection error: {e}")
@@ -44,35 +45,37 @@ def execution_loop(stop_event: threading.Event, run_dir: Path):
             print(f"Path execution error: {e}")
 
 if __name__ == "__main__":
-    # setup base directory (root of the project)
+    # directories
     base_dir = Path(__file__).parent.parent
-    
-    # create unique run directory
     run_dir = base_dir / "control/runs" / datetime.now().strftime("%Y-%m-%d_%H%M%S")
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    # setup essential files for this run
+    # files
     points_file = run_dir / 'points.csv'
     points_file.touch()
-    (run_dir / 'path.csv').touch()
+    # pd.DataFrame(columns=['id', 'category', 'latitude', 'longitude', 'heading']).to_csv(points_file, index=False)
 
-    # seed data with initial obstacles and destination
+    # TODO remove seed data and uncomment line above
     data = {
         'id': [0, 1, 2, 0, 0, 1, 2, 3, 4],
         'category': ['gps', 'gps', 'gps', 'destination', 'camera', 'camera', 'camera', 'camera', 'camera'],
         'latitude': [51.011466, 51.011401, 51.011315, 51.011504, 51.011453, 51.011412, 51.011340, 51.011485, 51.011394],
-        'longitude': [3.708731, 3.709055, 3.709353, 3.708728, 3.708779, 3.708822, 3.708969, 3.708916, 3.709079]
+        'longitude': [3.708731, 3.709055, 3.709353, 3.708728, 3.708779, 3.708822, 3.708969, 3.708916, 3.709079],
+        'heading': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     }
     pd.DataFrame(data).to_csv(points_file, index=False)
 
-    stop_event = threading.Event()
+    path_file = run_dir / 'path.csv'
+    path_file.touch()
+    pd.DataFrame(columns=['id', 'latitude', 'longitude']).to_csv(path_file, index=False)
 
-    # Start background threads for logic loops
-    #threading.Thread(target=collection_loop, args=(stop_event, run_dir), daemon=True).start()
+    # threads
+    stop_event = threading.Event()
+    threading.Thread(target=collection_loop, args=(stop_event, run_dir), daemon=True).start()
     threading.Thread(target=planning_loop, args=(stop_event, run_dir), daemon=True).start()
     threading.Thread(target=execution_loop, args=(stop_event, run_dir), daemon=True).start()
 
-    # simple interactive CLI
+    # interactive CLI
     map_process = None
     try:
         while True:
@@ -104,7 +107,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\nShutdown signal received.")
 
-    # --- CLEANUP LOGIC ---
+    # cleanup
     print("Shutting down...")
     stop_event.set() # stop the background threads
 

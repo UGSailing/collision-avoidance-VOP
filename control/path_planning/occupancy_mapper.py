@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from scipy.ndimage import binary_dilation
-from . import config
+import config
 
 class OccupancyMapper:
     def __init__(self, resolution=0.2, grid_size=50, hitbox_radius=0.3) -> None:
