@@ -17,3 +17,7 @@ OpenCV documentation: https://docs.opencv.org/4.x/dc/dbb/tutorial_py_calibration
 
 # Voor nu
 cameras-distance-test2.py eens testen en vandaaruit code opbouwen
+
+### Packages installeren
+Installeer de packages in requirements.txt in de gewenste venv.
+Voor picamera moet aparte installatie met bv. "sudo apt install python3-picamera2" gebeuren i.p.v. met pip.
