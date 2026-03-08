@@ -8,8 +8,12 @@ import cv2
 import numpy as np
 import yaml
 
-
+### gebruikt YAML file, check of bestaat en juiste resolutie
 ### python3 Calibration_filter.py --calib calib_cam0.yaml --camera 0 --out captures --alpha 0
+###  - Press 'c' to capture a still with rpicam-still (AE/AWB settle time applies)
+### python3 Calibration_filter.py --calib calib_cam0.yaml --input-dir calib_good_calibration_imgs --out captures --alpha 0
+### met PNG's:
+### python3 Calibration_filter.py --calib calib_cam0.yaml --input-dir calib_good_calibration_imgs --glob "*.png" --out captures --alpha 0
 
 def run(cmd, timeout=30):
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
@@ -71,6 +75,64 @@ def stop_preview(p):
         except subprocess.TimeoutExpired:
             p.kill()
             p.wait(timeout=2)
+
+def process_existing_images(input_dir, pattern, out_dir, w, h, map1, map2, roi, alpha, show_undist_only=False):
+    import glob
+
+    paths = sorted(glob.glob(os.path.join(input_dir, pattern)))
+    if not paths:
+        print(f"[ERROR] No images found in {input_dir} matching {pattern}")
+        return
+
+    print(f"[INFO] Processing {len(paths)} existing images from '{input_dir}'")
+
+    for idx, path in enumerate(paths):
+        frame = cv2.imread(path)
+        if frame is None:
+            print(f"[WARN] Could not read: {path}")
+            continue
+
+        if frame.shape[1] != w or frame.shape[0] != h:
+            frame = cv2.resize(frame, (w, h), interpolation=cv2.INTER_AREA)
+
+        undist = cv2.remap(
+            frame, map1, map2,
+            interpolation=cv2.INTER_LINEAR,
+            borderMode=cv2.BORDER_CONSTANT
+        )
+
+        if alpha == 0.0:
+            x, y, rw, rh = roi
+            und_view = undist[y:y+rh, x:x+rw]
+        else:
+            und_view = undist
+
+        base = os.path.splitext(os.path.basename(path))[0]
+        raw_out = os.path.join(out_dir, f"{base}_raw.jpg")
+        und_out = os.path.join(out_dir, f"{base}_undist.jpg")
+
+        cv2.imwrite(raw_out, frame)
+        cv2.imwrite(und_out, und_view)
+        print(f"[SAVE] {raw_out}")
+        print(f"[SAVE] {und_out}")
+
+        if show_undist_only:
+            disp = und_view
+        else:
+            disp_und = und_view
+            if disp_und.shape[0] != frame.shape[0]:
+                disp_und = cv2.resize(
+                    disp_und,
+                    (frame.shape[1], frame.shape[0]),
+                    interpolation=cv2.INTER_AREA
+                )
+            disp = np.hstack([frame, disp_und])
+
+        cv2.imshow("RAW | UNDISTORTED", disp)
+        k = cv2.waitKey(300) & 0xFF
+        if k == ord("q"):
+            print("[INFO] Stopped by user.")
+            break
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--calib", default="calib_cam0.yaml", help="Path to calibration YAML")
@@ -82,6 +144,8 @@ def main():
     ap.add_argument("--h", type=int, default=0, help="Override height (0 = use calib height)")
     ap.add_argument("--show-undist-only", action="store_true", help="Show only undistorted view")
     ap.add_argument("--extra", default="", help="Extra rpicam-still args as one string (advanced)")
+    ap.add_argument("--input-dir", default="", help="Process existing images from this folder instead of live capture")
+    ap.add_argument("--glob", default="*.jpg", help="Filename pattern for --input-dir")
     args = ap.parse_args()
 
     os.makedirs(args.out, exist_ok=True)
@@ -91,6 +155,23 @@ def main():
     h = args.h if args.h > 0 else ch
 
     _, roi, map1, map2 = build_undistort_maps((w, h), K, dist, alpha=args.alpha)
+    if args.input_dir:
+        os.makedirs(args.out, exist_ok=True)
+        cv2.namedWindow("RAW | UNDISTORTED", cv2.WINDOW_NORMAL)
+        process_existing_images(
+            args.input_dir,
+            args.glob,
+            args.out,
+            w,
+            h,
+            map1,
+            map2,
+            roi,
+            args.alpha,
+            show_undist_only=args.show_undist_only
+        )
+        cv2.destroyAllWindows()
+        return
 
     extra_args = args.extra.split() if args.extra.strip() else []
 
