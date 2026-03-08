@@ -9,9 +9,12 @@ import numpy as np
 import yaml
 
 ### gebruikt YAML file, check of bestaat en juiste resolutie
-### python3 Calibration_filter.py --calib calib_cam0.yaml --camera 0 --out captures --alpha 0
 ###  - Press 'c' to capture a still with rpicam-still (AE/AWB settle time applies)
+### python3 Calibration_filter.py --calib calib_cam0.yaml --camera 0 --out captures --alpha 0
+
+### met bestaande map
 ### python3 Calibration_filter.py --calib calib_cam0.yaml --input-dir calib_good_calibration_imgs --out captures --alpha 0
+
 ### met PNG's:
 ### python3 Calibration_filter.py --calib calib_cam0.yaml --input-dir calib_good_calibration_imgs --glob "*.png" --out captures --alpha 0
 
