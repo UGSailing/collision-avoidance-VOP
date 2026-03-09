@@ -1,103 +1,136 @@
-import cv2
-import time
+#!/usr/bin/env python3
+import argparse
 import os
-
-try:
-    from picamera2 import Picamera2
-    HAS_PICAMERA2 = True
-except ImportError:
-    Picamera2 = None
-    HAS_PICAMERA2 = False
-
-# Settings: 
-DURATION = 60  # seconds
-OUTPUT_DIR = "./recordings"
-FPS = 30
-RESOLUTION = (1280, 720)
+import subprocess
+import sys
+from datetime import datetime
 
 
-os.makedirs(OUTPUT_DIR, exist_ok=True)
+def start_recording(camera_id, output_path, width, height, fps, duration_sec, shutter_us, gain):
+	timeout_ms = int(duration_sec * 1000)
+	cmd = [
+		"rpicam-vid",
+		"--camera",
+		str(camera_id),
+		"--output",
+		output_path,
+		"--timeout",
+		str(timeout_ms),
+		"--width",
+		str(width),
+		"--height",
+		str(height),
+		"--framerate",
+		str(fps),
+		"--codec",
+		"libav",
+		"--libav-format",
+		"mp4",
+		"--shutter",
+		str(shutter_us),
+		"--gain",
+		str(gain),
+		"--flush",
+		"--nopreview",
+	]
+
+	print("[START]", " ".join(cmd))
+	return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
 
-def _init_cameras():
-    if HAS_PICAMERA2:
-        cam0 = Picamera2(0)
-        cam1 = Picamera2(1)
-
-        config0 = cam0.create_video_configuration(main={"size": RESOLUTION})
-        config1 = cam1.create_video_configuration(main={"size": RESOLUTION})
-
-        cam0.configure(config0)
-        cam1.configure(config1)
-
-        cam0.start()
-        cam1.start()
-
-        return cam0, cam1, "picamera2"
-
-    print("picamera2 not found. Falling back to OpenCV VideoCapture.")
-
-    cam0 = cv2.VideoCapture(0)
-    cam1 = cv2.VideoCapture(1)
-
-    for cam in (cam0, cam1):
-        cam.set(cv2.CAP_PROP_FRAME_WIDTH, RESOLUTION[0])
-        cam.set(cv2.CAP_PROP_FRAME_HEIGHT, RESOLUTION[1])
-        cam.set(cv2.CAP_PROP_FPS, FPS)
-
-    if not cam0.isOpened() or not cam1.isOpened():
-        raise RuntimeError(
-            "Unable to open both cameras with OpenCV. "
-            "Use Raspberry Pi OS + python3-picamera2 for CSI cameras, "
-            "or check that camera indices 0 and 1 exist for USB cameras."
-        )
-
-    return cam0, cam1, "opencv"
+def get_frame_count(video_path):
+	cmd = [
+		"ffprobe",
+		"-v",
+		"error",
+		"-count_frames",
+		"-select_streams",
+		"v:0",
+		"-show_entries",
+		"stream=nb_read_frames",
+		"-of",
+		"default=nokey=1:noprint_wrappers=1",
+		video_path,
+	]
+	r = subprocess.run(cmd, capture_output=True, text=True)
+	if r.returncode != 0:
+		return None
+	value = r.stdout.strip()
+	if not value.isdigit():
+		return None
+	return int(value)
 
 
-cam0, cam1, backend = _init_cameras()
+def main():
+	parser = argparse.ArgumentParser(
+		description="Record 500s videos from Pi cameras 0 and 1 using rpicam-vid."
+	)
+	parser.add_argument("--duration", type=int, default=60, help="Duration in seconds (default: 10)")
+	parser.add_argument("--w", type=int, default=1280, help="Frame width (default: 1280)")
+	parser.add_argument("--h", type=int, default=720, help="Frame height (default: 720)")
+	parser.add_argument("--fps", type=int, default=30, help="Frame rate (default: 30)")
+	parser.add_argument(
+		"--shutter-us",
+		type=int,
+		default=10000,
+		help="Exposure time in microseconds (default: 10000)",
+	)
+	parser.add_argument("--gain", type=float, default=2.0, help="Analog gain (default: 2.0)")
+	parser.add_argument(
+		"--out-dir",
+		default="recordings",
+		help="Directory to store output videos (default: recordings)",
+	)
+	args = parser.parse_args()
 
-# Video writers
-fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+	os.makedirs(args.out_dir, exist_ok=True)
 
-video0_path = os.path.join(OUTPUT_DIR, "camera0.mp4")
-video1_path = os.path.join(OUTPUT_DIR, "camera1.mp4")
+	stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+	cam0_file = os.path.join(args.out_dir, f"camera0_{stamp}.mp4")
+	cam1_file = os.path.join(args.out_dir, f"camera1_{stamp}.mp4")
 
-writer0 = cv2.VideoWriter(video0_path, fourcc, FPS, RESOLUTION)
-writer1 = cv2.VideoWriter(video1_path, fourcc, FPS, RESOLUTION)
+	proc0 = start_recording(0, cam0_file, args.w, args.h, args.fps, args.duration, args.shutter_us, args.gain)
+	proc1 = start_recording(1, cam1_file, args.w, args.h, args.fps, args.duration, args.shutter_us, args.gain)
 
-start_time = time.time()
+	out0, err0 = proc0.communicate()
+	out1, err1 = proc1.communicate()
 
-print("Recording started...")
+	ok0 = proc0.returncode == 0 and os.path.exists(cam0_file)
+	ok1 = proc1.returncode == 0 and os.path.exists(cam1_file)
 
-while time.time() - start_time < DURATION:
+	if ok0 and ok1:
+		frames0 = get_frame_count(cam0_file)
+		frames1 = get_frame_count(cam1_file)
 
-    if backend == "picamera2":
-        frame0 = cam0.capture_array()
-        frame1 = cam1.capture_array()
+		print("[DONE] Recording complete.")
+		print(f"[FILE] {cam0_file}")
+		print(f"[FILE] {cam1_file}")
+		if frames0 is not None:
+			print(f"[CAM0 FRAMES] {frames0}")
+		if frames1 is not None:
+			print(f"[CAM1 FRAMES] {frames1}")
+		if (frames0 is not None and frames0 <= 1) or (frames1 is not None and frames1 <= 1):
+			print("[WARN] At least one output still has <= 1 frame. Try lower --w/--h or --fps.")
+		return
 
-        frame0 = cv2.cvtColor(frame0, cv2.COLOR_RGB2BGR)
-        frame1 = cv2.cvtColor(frame1, cv2.COLOR_RGB2BGR)
-    else:
-        ok0, frame0 = cam0.read()
-        ok1, frame1 = cam1.read()
-        if not ok0 or not ok1:
-            print("Frame capture failed, stopping early.")
-            break
+	print("[ERROR] One or both recordings failed.")
 
-    writer0.write(frame0)
-    writer1.write(frame1)
+	if not ok0:
+		print("[CAM0] Return code:", proc0.returncode)
+		if out0.strip():
+			print("[CAM0 STDOUT]\n" + out0.strip())
+		if err0.strip():
+			print("[CAM0 STDERR]\n" + err0.strip())
 
-# Cleanup
-writer0.release()
-writer1.release()
+	if not ok1:
+		print("[CAM1] Return code:", proc1.returncode)
+		if out1.strip():
+			print("[CAM1 STDOUT]\n" + out1.strip())
+		if err1.strip():
+			print("[CAM1 STDERR]\n" + err1.strip())
 
-if backend == "picamera2":
-    cam0.stop()
-    cam1.stop()
-else:
-    cam0.release()
-    cam1.release()
+	sys.exit(1)
 
-print("Recording finished.")
-print("Saved to:", OUTPUT_DIR)
+
+if __name__ == "__main__":
+	main()
