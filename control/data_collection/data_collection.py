@@ -4,7 +4,7 @@ import pynmea2
 import pandas as pd
 from pathlib import Path
 from path_execution import BoatCANInterface
-import config
+from . import config
 
 
 class DataCollector:
