@@ -20,13 +20,15 @@ import math
 import signal
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import yaml
+
+from camera.depth_calculation.dual_camera_depth_calculation import depth_from_disparity
 
 Picamera2: Any = None
 H264Encoder: Any = None
@@ -75,6 +77,8 @@ class CamIntrinsics:
 class DetectionRecord:
     label: str
     confidence: float
+    center_x: float
+    center_y: float
     distance_m: float | None
     axis_offset_m: float | None
     bbox_xyxy: list[float]
@@ -86,13 +90,9 @@ class DetectionEngine:
         model_path: str,
         conf_threshold: float,
         class_aliases: dict[str, str],
-        object_width_m: dict[str, float],
-        intrinsics: CamIntrinsics,
     ) -> None:
         self.conf_threshold = conf_threshold
         self.class_aliases = class_aliases
-        self.object_width_m = object_width_m
-        self.intrinsics = intrinsics
 
         self.enabled = YOLO is not None
         self.model = None
@@ -138,21 +138,218 @@ class DetectionEngine:
             x1, y1, x2, y2 = [float(v) for v in bbox]
             width_px = max(1.0, x2 - x1)
             center_x = (x1 + x2) / 2.0
-
-            dist = self._estimate_distance_m(label, width_px)
-            axis_offset = self._estimate_axis_offset_m(dist, center_x)
+            center_y = (y1 + y2) / 2.0
 
             output.append(
                 DetectionRecord(
                     label=label,
                     confidence=float(conf),
-                    distance_m=dist,
-                    axis_offset_m=axis_offset,
+                    center_x=center_x,
+                    center_y=center_y,
+                    distance_m=None,
+                    axis_offset_m=None,
                     bbox_xyxy=[x1, y1, x2, y2],
                 )
             )
 
         return output
+
+
+class DepthEstimator:
+    def annotate(
+        self,
+        left_detections: list[DetectionRecord],
+        right_detections: list[DetectionRecord],
+    ) -> tuple[list[DetectionRecord], list[DetectionRecord]]:
+        return left_detections, right_detections
+
+
+class CalibratedDepthEstimator(DepthEstimator):
+    def __init__(self, intrinsics: CamIntrinsics) -> None:
+        self.intrinsics = intrinsics
+
+    def _annotate_detection(
+        self, detection: DetectionRecord, distance_m: float | None
+    ) -> DetectionRecord:
+        axis_offset = self._estimate_axis_offset_m(distance_m, detection.center_x)
+        return replace(
+            detection,
+            distance_m=distance_m,
+            axis_offset_m=axis_offset,
+        )
+
+    def _estimate_axis_offset_m(
+        self, distance_m: float | None, center_x: float
+    ) -> float | None:
+        if distance_m is None:
+            return None
+
+        return float(
+            ((center_x - self.intrinsics.cx) / self.intrinsics.fx) * distance_m
+        )
+
+
+class WidthDepthEstimator(CalibratedDepthEstimator):
+    def __init__(
+        self, intrinsics: CamIntrinsics, object_width_m: dict[str, float]
+    ) -> None:
+        super().__init__(intrinsics)
+        self.object_width_m = object_width_m
+
+    def annotate(
+        self,
+        left_detections: list[DetectionRecord],
+        right_detections: list[DetectionRecord],
+    ) -> tuple[list[DetectionRecord], list[DetectionRecord]]:
+        return (
+            [
+                self._annotate_detection(det, self._estimate_distance_m(det))
+                for det in left_detections
+            ],
+            [
+                self._annotate_detection(det, self._estimate_distance_m(det))
+                for det in right_detections
+            ],
+        )
+
+    def _estimate_distance_m(self, detection: DetectionRecord) -> float | None:
+        x1, _, x2, _ = detection.bbox_xyxy
+        width_px = max(1.0, x2 - x1)
+        object_width = self.object_width_m.get(detection.label)
+        if object_width is None:
+            return None
+
+        distance_m = (self.intrinsics.fx * object_width) / width_px
+        if distance_m <= 0 or not math.isfinite(distance_m):
+            return None
+        return float(distance_m)
+
+
+class DualCameraDepthEstimator(CalibratedDepthEstimator):
+    def __init__(
+        self,
+        intrinsics: CamIntrinsics,
+        baseline_m: float,
+        min_disparity_px: float,
+        max_vertical_gap_px: float,
+    ) -> None:
+        super().__init__(intrinsics)
+        self.baseline_m = baseline_m
+        self.min_disparity_px = min_disparity_px
+        self.max_vertical_gap_px = max_vertical_gap_px
+
+    def annotate(
+        self,
+        left_detections: list[DetectionRecord],
+        right_detections: list[DetectionRecord],
+    ) -> tuple[list[DetectionRecord], list[DetectionRecord]]:
+        annotated_left = list(left_detections)
+        annotated_right = list(right_detections)
+        unmatched_right = set(range(len(right_detections)))
+
+        for left_index, left_detection in enumerate(left_detections):
+            right_index = self._find_match(
+                left_detection, right_detections, unmatched_right
+            )
+            if right_index is None:
+                continue
+
+            right_detection = right_detections[right_index]
+            disparity_px = abs(left_detection.center_x - right_detection.center_x)
+            distance_m = self._estimate_distance_m(disparity_px)
+            if distance_m is None:
+                continue
+
+            annotated_left[left_index] = self._annotate_detection(
+                left_detection, distance_m
+            )
+            annotated_right[right_index] = self._annotate_detection(
+                right_detection, distance_m
+            )
+            unmatched_right.remove(right_index)
+
+        return annotated_left, annotated_right
+
+    def _find_match(
+        self,
+        left_detection: DetectionRecord,
+        right_detections: list[DetectionRecord],
+        unmatched_right: set[int],
+    ) -> int | None:
+        best_index: int | None = None
+        best_score: tuple[float, float] | None = None
+
+        for right_index in unmatched_right:
+            candidate = right_detections[right_index]
+            if candidate.label != left_detection.label:
+                continue
+
+            vertical_gap = abs(left_detection.center_y - candidate.center_y)
+            if vertical_gap > self.max_vertical_gap_px:
+                continue
+
+            disparity_px = abs(left_detection.center_x - candidate.center_x)
+            if disparity_px < self.min_disparity_px:
+                continue
+
+            score = (
+                vertical_gap,
+                abs(
+                    self._bbox_width_px(left_detection) - self._bbox_width_px(candidate)
+                ),
+            )
+            if best_score is None or score < best_score:
+                best_score = score
+                best_index = right_index
+
+        return best_index
+
+    def _estimate_distance_m(self, disparity_px: float) -> float | None:
+        try:
+            distance_m = depth_from_disparity(
+                disparity_px, self.intrinsics.fx, self.baseline_m
+            )
+        except ValueError:
+            return None
+
+        if distance_m <= 0 or not math.isfinite(distance_m):
+            return None
+        return float(distance_m)
+
+    @staticmethod
+    def _bbox_width_px(detection: DetectionRecord) -> float:
+        x1, _, x2, _ = detection.bbox_xyxy
+        return max(1.0, x2 - x1)
+
+
+def build_depth_estimator(
+    depth_calculation: str,
+    intrinsics: CamIntrinsics | None,
+    object_width_m: dict[str, float],
+    stereo_baseline_m: float,
+    stereo_min_disparity_px: float,
+    stereo_max_vertical_gap_px: float,
+) -> DepthEstimator:
+    if depth_calculation == "none":
+        return DepthEstimator()
+
+    if intrinsics is None:
+        raise ValueError(
+            "Calibration intrinsics are required for the selected depth calculation"
+        )
+
+    if depth_calculation == "bbox-width":
+        return WidthDepthEstimator(intrinsics=intrinsics, object_width_m=object_width_m)
+
+    if depth_calculation == "dual-camera":
+        return DualCameraDepthEstimator(
+            intrinsics=intrinsics,
+            baseline_m=stereo_baseline_m,
+            min_disparity_px=stereo_min_disparity_px,
+            max_vertical_gap_px=stereo_max_vertical_gap_px,
+        )
+
+    raise ValueError(f"Unsupported depth calculation: {depth_calculation}")
 
     def _estimate_distance_m(self, label: str, width_px: float) -> float | None:
         if width_px <= 0:
@@ -249,6 +446,13 @@ def create_parser() -> argparse.ArgumentParser:
         help="Detection log interval in seconds (default: 0.1)",
     )
     parser.add_argument(
+        "--depth-calculation",
+        type=str,
+        choices=("dual-camera", "bbox-width", "none"),
+        default="dual-camera",
+        help="Depth estimation strategy. Keep this switchable so a future single-camera estimator can be added cleanly.",
+    )
+    parser.add_argument(
         "--model",
         type=str,
         default="yolov8n.pt",
@@ -267,7 +471,25 @@ def create_parser() -> argparse.ArgumentParser:
         "--object-widths-json",
         type=str,
         default='{"duck": 0.25, "buoy": 0.30, "person": 0.45}',
-        help="JSON map of real object widths in meters for distance estimation",
+        help="JSON map of real object widths in meters for bbox-width distance estimation",
+    )
+    parser.add_argument(
+        "--stereo-baseline-m",
+        type=float,
+        default=0.06,
+        help="Stereo baseline in meters for dual-camera depth estimation",
+    )
+    parser.add_argument(
+        "--stereo-min-disparity-px",
+        type=float,
+        default=1.0,
+        help="Minimum center disparity in pixels before dual-camera depth is considered valid",
+    )
+    parser.add_argument(
+        "--stereo-max-vertical-gap-px",
+        type=float,
+        default=80.0,
+        help="Maximum vertical center gap in pixels when matching left/right detections",
     )
     parser.add_argument(
         "--mock-no-cameras",
@@ -320,17 +542,25 @@ def main() -> int:
 
     configure_logging(app_log_path)
 
-    intrinsics = load_intrinsics(args.calib_yaml)
     class_aliases = parse_json_dict(args.class_aliases_json, "class aliases")
     object_widths_raw = parse_json_dict(args.object_widths_json, "object widths")
     object_widths = {str(k): float(v) for k, v in object_widths_raw.items()}
+    intrinsics = None
+    if args.depth_calculation != "none":
+        intrinsics = load_intrinsics(args.calib_yaml)
 
     detector = DetectionEngine(
         model_path=args.model,
         conf_threshold=args.conf,
         class_aliases={str(k): str(v) for k, v in class_aliases.items()},
-        object_width_m=object_widths,
+    )
+    depth_estimator = build_depth_estimator(
+        depth_calculation=args.depth_calculation,
         intrinsics=intrinsics,
+        object_width_m=object_widths,
+        stereo_baseline_m=args.stereo_baseline_m,
+        stereo_min_disparity_px=args.stereo_min_disparity_px,
+        stereo_max_vertical_gap_px=args.stereo_max_vertical_gap_px,
     )
 
     left_video = run_dir / f"camera{args.camera_left}.mp4"
@@ -340,6 +570,7 @@ def main() -> int:
     logging.info("Left video: %s", left_video)
     logging.info("Right video: %s", right_video)
     logging.info("Detections log: %s", detections_log_path)
+    logging.info("Depth calculation: %s", args.depth_calculation)
 
     left_cam = None
     right_cam = None
@@ -423,11 +654,15 @@ def main() -> int:
 
                     left_detections = detector.detect(left_frame)
                     right_detections = detector.detect(right_frame)
+                    left_detections, right_detections = depth_estimator.annotate(
+                        left_detections,
+                        right_detections,
+                    )
 
                     payload = {
                         "timestamp_utc": ts_utc,
                         "elapsed_s": round(elapsed, 3),
-                        "mock_mode": False,
+                        "mock_mode": False,  # Set to true to run without cameras connected
                         "detections": [
                             {
                                 "camera": args.camera_left,

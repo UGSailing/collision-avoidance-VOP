@@ -2,7 +2,6 @@
 import argparse
 from pathlib import Path
 
-import cv2
 import numpy as np
 import yaml
 
@@ -63,6 +62,13 @@ def resolve_focal_px(calib_path: str | None, focal_px: float | None) -> float:
 def save_depth_visualization(
     depth_m: np.ndarray, out_path: str, max_depth_m: float
 ) -> None:
+    try:
+        import cv2
+    except ImportError as exc:
+        raise RuntimeError(
+            "OpenCV is required to save a depth visualization PNG. Install opencv-python or skip --out-depth-png usage."
+        ) from exc
+
     finite = np.isfinite(depth_m)
     vis = np.zeros(depth_m.shape, dtype=np.uint8)
 
