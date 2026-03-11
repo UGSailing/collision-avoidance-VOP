@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from scipy.ndimage import binary_dilation
-from . import config
+import config
 from matplotlib.path import Path
 
 class OccupancyMapper:

@@ -1,7 +1,0 @@
-# devices
-GPS_PORT = '/dev/ttyACM0'
-GPS_BAUDRATE = 115200
-READ_TIMEOUT = 0.1
-CAN_CHANNEL = 'can0'
-CAN_BUSTYPE = 'socketcan'
-CAN_BITRATE = 1000000
