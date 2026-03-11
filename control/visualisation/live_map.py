@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from path_planning import config
+import config
 
 # parse arguments
 parser = argparse.ArgumentParser()
