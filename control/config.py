@@ -19,6 +19,11 @@ CAN_CHANNEL = 'can0'
 CAN_BUSTYPE = 'socketcan'
 CAN_BITRATE = 1000000
 
+# CAN control signals (boat_main.py autonomous mode)
+# TODO fill in with actual values
+CAN_GO_ID = 0x10    # arbitration ID that triggers run start
+CAN_STOP_ID = 0x11  # arbitration ID that triggers run stop / restart
+
 # geofencing
 GEOFENCE_POND_ZWIJNAARDE = [      # basic geofencing test boundaries
     (51.0116, 3.7085), # Top Left
