@@ -1,6 +1,7 @@
 import pandas as pd
 import math
-from can_communication import BoatCANInterface
+from .can_communication import BoatCANInterface
+from path_planning import config
 
 
 """
@@ -55,6 +56,34 @@ def get_current_heading_and_location(run_dir):
     except (ValueError, KeyError, FileNotFoundError):
         return None, None, None
 
+
+
+
+#GEOFENCING
+
+def is_boat_in_geofence(boat_lat, boat_lon):
+    """Checks raw GPS against the geofence."""
+    if not hasattr(config, 'GEOFENCE_GPS') or not config.GEOFENCE_GPS:
+        return True # Default to safe if no geofence defined
+        
+    is_inside = False
+    j = len(config.GEOFENCE_GPS) - 1
+    for i in range(len(config.GEOFENCE_GPS)):
+        lati, loni = config.GEOFENCE_GPS[i]
+        latj, lonj = config.GEOFENCE_GPS[j]
+        
+        # Note: Y is Lat, X is Lon
+        y_between = (lati > boat_lat) != (latj > boat_lat)
+        if y_between:
+            lon_intersect = loni + (boat_lat - lati) * (lonj - loni) / (latj - lati)
+            if boat_lon < lon_intersect:
+                is_inside = not is_inside
+        j = i
+    return is_inside
+
+#GEOFENCING END
+
+
 def follow_path(run_dir):
     """
     Reads the path, calculates steering error, and sends CAN command.
@@ -64,6 +93,16 @@ def follow_path(run_dir):
         curr_lat, curr_lon, current_heading = get_current_heading_and_location(run_dir)
         if curr_lat is None:
             return # Waiting for GPS data
+
+
+        # --- GEOFENCE EMERGENCY CHECK ---
+        if not is_boat_in_geofence(curr_lat, curr_lon):
+            print("🚨 GEOFENCE BREACH DETECTED! 🚨 Centering Rudder.")
+            can_bus.send_rudder_command(CENTER_RUDDER_RAW)
+            # TODO: Kill motor throttle here when implemented!
+            return
+
+        # GEOFENCING END
 
         # 2. Read the planned path
         path_file = run_dir / 'path.csv'

@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from scipy.ndimage import binary_dilation
 from . import config
+from matplotlib.path import Path
 
 class OccupancyMapper:
     def __init__(self, resolution=0.2, grid_size=50, hitbox_radius=0.3) -> None:
@@ -111,7 +112,68 @@ class OccupancyMapper:
         self._rows_processed = len(df)
 
         self.grid = self._rasterize_obstacles(self._known_obstacle_gps)
+        self._apply_geofence() #GEOFENCING TOEVOEGING
         return self.grid
+
+
+
+
+
+
+#TEST GEOFENCING    
+    # def _is_in_polygon(self, x, y, polygon):
+    #     """Ray-casting algorithm for local grid coordinates."""
+    #     is_inside = False
+    #     j = len(polygon) - 1
+    #     for i in range(len(polygon)):
+    #         xi, yi = polygon[i]
+    #         xj, yj = polygon[j]
+    #         y_between = (yi > y) != (yj > y)
+    #         if y_between:
+    #             x_intersect = xi + (y - yi) * (xj - xi) / (yj - yi)
+    #             if x < x_intersect:
+    #                 is_inside = not is_inside
+    #         j = i
+    #     return is_inside
+
+    def _apply_geofence(self):
+        """Sets all grid cells outside the geofence to 1 (obstacle)."""
+        if not hasattr(config, 'GEOFENCE_GPS') or not config.GEOFENCE_GPS:
+            return
+
+        # 1. Convert GPS geofence corners to local grid indices
+        poly_grid = []
+        center = self.size_cells // 2
+        for lat, lon in config.GEOFENCE_GPS:
+            x_m, y_m = self._gps_to_local(lat, lon)
+            gx = int(x_m / self.res) + center
+            gy = int(y_m / self.res) + center
+            poly_grid.append((gx, gy))
+
+        # 2. Iterate through the grid and mask out the boundary
+        # Note: If this nested loop is too slow (e.g., Grid is 1000x1000), 
+        # we can optimize this later using skimage.draw.polygon or matplotlib.path
+        # 2. Create a coordinate grid (vectorized)
+        # This creates a fast mathematical mesh of every X/Y coordinate in your array
+        x, y = np.meshgrid(np.arange(self.size_cells), np.arange(self.size_cells))
+        x, y = x.flatten(), y.flatten()
+        points = np.vstack((x,y)).T
+
+        # 3. Fast C-level ray-casting using matplotlib
+        geofence_path = Path(poly_grid)
+        
+        # Returns a boolean array of what is INSIDE the geofence
+        inside_mask = geofence_path.contains_points(points).reshape(self.size_cells, self.size_cells)
+
+        # 4. Mask the grid: Any cell NOT inside (~), set to 1.0 (obstacle)
+        self.grid[~inside_mask] = 1.0
+
+
+#TEST GEOFENCING EINDE  
+
+
+
+
 
     def update_grid(self, run_dir) -> np.ndarray:
         """
@@ -171,4 +233,5 @@ class OccupancyMapper:
             self.grid = np.maximum(self.grid, new_layer)
         # else: nothing new, grid is already up to date
 
+        self._apply_geofence() #GEOFENCING TOEVOEGING
         return self.grid

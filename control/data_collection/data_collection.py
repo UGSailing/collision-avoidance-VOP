@@ -18,6 +18,7 @@ class DataCollector:
             print("GPS Serial connection established.")
         except serial.SerialException as e:
             print(f"Warning: GPS not connected. {e}")
+            self.gps_reader = None #zodat dit werkt zonder gps
 
         self.run_dir = run_dir
         self.gps_id = 0
@@ -35,6 +36,10 @@ class DataCollector:
             Reads GPS data and updates the points.csv file with the latest position and heading.
         """
         # credit: https://github.com/Knio/pynmea2/blob/master/examples/read_serial.py
+        
+        if self.gps_reader is None:
+            return
+        
         try:
             line = self.gps_reader.readline()
             msg = pynmea2.parse(line)

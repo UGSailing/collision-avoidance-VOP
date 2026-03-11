@@ -7,6 +7,10 @@ from dash.dependencies import Input, Output
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from path_planning import config
 
 # parse arguments
 parser = argparse.ArgumentParser()
@@ -90,6 +94,29 @@ def update_map(n):
             hoverinfo="skip",
             name="path"
         ))
+
+
+    # --- ADD THIS GEOFENCE TRACE ---
+    if hasattr(config, 'GEOFENCE_GPS') and config.GEOFENCE_GPS:
+        # Extract Lat/Lon lists
+        geo_lats = [pt[0] for pt in config.GEOFENCE_GPS]
+        geo_lons = [pt[1] for pt in config.GEOFENCE_GPS]
+        
+        # Close the polygon by adding the first point to the end
+        geo_lats.append(geo_lats[0])
+        geo_lons.append(geo_lons[0])
+
+        fig.add_trace(go.Scattermap(
+            lat=geo_lats,
+            lon=geo_lons,
+            mode="lines",
+            fill="toself", 
+            fillcolor="rgba(0, 0, 255, 0.15)", 
+            line=dict(width=3, color="blue"), # <--- FIXED
+            hoverinfo="skip",
+            name="geofence"
+        ))
+    # --------------------------------
         
 
     fig.update_layout(
