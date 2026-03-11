@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import heapq
-from . import config
+import config
 
 def _get_pos_and_dest(df: pd.DataFrame) -> list[tuple] | None:
     """

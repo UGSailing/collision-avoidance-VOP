@@ -5,7 +5,7 @@ import pynmea2
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from . import config
+import config
 
 
 class DataCollector:

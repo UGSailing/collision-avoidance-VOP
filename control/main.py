@@ -5,9 +5,10 @@ import subprocess
 import sys
 from pathlib import Path
 from datetime import datetime
+import config
 from data_collection import DataCollector
-from path_planning import update_path, OccupancyMapper, config
-from path_execution import follow_path
+from path_planning import update_path, OccupancyMapper
+from path_execution import PathFollower
 
 
 def collection_loop(stop_event: threading.Event, run_dir: Path):
@@ -44,9 +45,10 @@ def planning_loop(stop_event: threading.Event, run_dir: Path):
         stop_event.wait(config.PATH_UPDATE_INTERVAL)
 
 def execution_loop(stop_event: threading.Event, run_dir: Path):
+    path_follower = PathFollower(run_dir)
     while not stop_event.is_set():
         try:
-            follow_path(run_dir)
+            path_follower.follow_path(run_dir)
             stop_event.wait(10)
         except Exception as e:
             print(f"Path execution error: {e}")
