@@ -20,7 +20,7 @@ CAN_BUSTYPE = 'socketcan'
 CAN_BITRATE = 1000000
 
 # geofencing
-GEOFENCE_GPS = [      # basic geofencing test boundaries
+GEOFENCE_POND_ZWIJNAARDE = [      # basic geofencing test boundaries
     (51.0116, 3.7085), # Top Left
     (51.011379, 3.709218), # Top Right
     (51.0112, 3.7095), # Bottom Right

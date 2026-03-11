@@ -58,8 +58,8 @@ def run_smart_mock(run_dir_str):
             heading += diff * 0.3 # Turn 30% of the way each second
 
             # 3. Move the boat in the direction it's facing
-            lat += math.cos(math.radians(heading)) * speed * 0.9 # Lat is North/South
-            lon += math.sin(math.radians(heading)) * speed * 1.1 # Lon is East/West (Mercator approx)
+            lat += math.cos(math.radians(heading)) * speed * 0.9 # type: ignore # Lat is North/South
+            lon += math.sin(math.radians(heading)) * speed * 1.1 # type: ignore # Lon is East/West (Mercator approx)
 
             # 4. Save to CSV
             df = pd.read_csv(points_path)

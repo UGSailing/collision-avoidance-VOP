@@ -97,10 +97,10 @@ def update_map(n):
 
 
     # --- ADD THIS GEOFENCE TRACE ---
-    if hasattr(config, 'GEOFENCE_GPS') and config.GEOFENCE_GPS:
+    if hasattr(config, 'GEOFENCE_GPS') and config.GEOFENCE_POND_ZWIJNAARDE:
         # Extract Lat/Lon lists
-        geo_lats = [pt[0] for pt in config.GEOFENCE_GPS]
-        geo_lons = [pt[1] for pt in config.GEOFENCE_GPS]
+        geo_lats = [pt[0] for pt in config.GEOFENCE_POND_ZWIJNAARDE]
+        geo_lons = [pt[1] for pt in config.GEOFENCE_POND_ZWIJNAARDE]
         
         # Close the polygon by adding the first point to the end
         geo_lats.append(geo_lats[0])

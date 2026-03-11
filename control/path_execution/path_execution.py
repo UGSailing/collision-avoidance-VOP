@@ -3,27 +3,6 @@ import math
 import config
 import can
 
-def is_boat_in_geofence(boat_lat, boat_lon):
-    """Checks raw GPS against the geofence."""
-    if not hasattr(config, 'GEOFENCE_GPS') or not config.GEOFENCE_GPS:
-        return True # Default to safe if no geofence defined
-        
-    is_inside = False
-    j = len(config.GEOFENCE_GPS) - 1
-    for i in range(len(config.GEOFENCE_GPS)):
-        lati, loni = config.GEOFENCE_GPS[i]
-        latj, lonj = config.GEOFENCE_GPS[j]
-        
-        # Note: Y is Lat, X is Lon
-        y_between = (lati > boat_lat) != (latj > boat_lat)
-        if y_between:
-            lon_intersect = loni + (boat_lat - lati) * (lonj - loni) / (latj - lati)
-            if boat_lon < lon_intersect:
-                is_inside = not is_inside
-        j = i
-    return is_inside
-
-
 class PathFollower:
     def __init__(self, run_dir):
         self.run_dir = run_dir
@@ -62,7 +41,7 @@ class PathFollower:
             current_loc = gps_points.loc[gps_points['id'].idxmax()]
             current_heading = current_loc.get('heading', None)
             
-            if pd.isna(current_heading):
+            if pd.isna(current_heading): # type: ignore
                 return None, None, None
                 
             return current_loc['latitude'], current_loc['longitude'], current_heading
@@ -77,14 +56,6 @@ class PathFollower:
             if curr_lat is None:
                 return # Waiting for GPS data
 
-            # --- GEOFENCE EMERGENCY CHECK ---
-            if not is_boat_in_geofence(curr_lat, curr_lon):
-                print("🚨 GEOFENCE BREACH DETECTED! 🚨 Centering Rudder.")
-                if self.can_bus:
-                    self.can_bus.send_rudder_command(config.CENTER_RUDDER_RAW)
-                # TODO: Kill motor throttle here when implemented!
-                return
-
             # 2. Read the planned path
             path_file = run_dir / 'path.csv'
             if not path_file.exists():
@@ -94,7 +65,7 @@ class PathFollower:
             if len(path_df) < 2:
                 # We are at the destination (or no path exists)
                 if self.can_bus:
-                    self.can_bus.send_rudder_command(config.CENTER_RUDDER_RAW)
+                    self.send_rudder_command(config.CENTER_RUDDER_RAW)
                 return
 
             # 3. Get the next waypoint (index 1)
@@ -105,17 +76,17 @@ class PathFollower:
             target_bearing = self.calculate_bearing(curr_lat, curr_lon, next_lat, next_lon)
 
             # 5. Calculate heading error
-            error = target_bearing - current_heading
+            error = target_bearing - current_heading # type: ignore
             error = (error + 180) % 360 - 180 
 
             # 6. P-Controller math
-            rudder_adjustment = int(error * config.P_GAIN)
+            rudder_adjustment = int(error * config.P_GAIN) # type: ignore
             rudder_adjustment = max(-config.MAX_RUDDER_TURN, min(config.MAX_RUDDER_TURN, rudder_adjustment))
             target_raw_angle = config.CENTER_RUDDER_RAW + rudder_adjustment
 
             # 7. Send command
             if self.can_bus:
-                success = self.can_bus.send_rudder_command(target_raw_angle)
+                success = self.send_rudder_command(target_raw_angle)
                 if success:
                     print(f"Target Bearing: {target_bearing:.1f}° | Error: {error:.1f}° | Sending Command: {target_raw_angle}")
             else:
@@ -124,3 +95,40 @@ class PathFollower:
 
         except Exception as e:
             print(f"Execution Error: {e}")
+
+    def send_rudder_command(self, target_raw_angle):
+        """
+        Sends a desired angle to the ESP32 over CAN (ID 0x02).
+        target_raw_angle should be an integer between 0 and 4095.
+        """
+        if self.can_bus is None:
+            print("Cannot send, CAN bus not initialized.")
+            return False
+
+        # Ensure the angle is within the 12-bit range of the AS5600 logic
+        target_raw_angle = max(0, min(4095, int(target_raw_angle)))
+
+        # Split the integer into 2 bytes (High byte, Low byte)
+        data = [
+            (target_raw_angle >> 8) & 0xFF,
+            target_raw_angle & 0xFF
+        ]
+
+        # Create the CAN message (standard 11-bit ID)
+        msg = can.Message(
+            arbitration_id=0x02,
+            data=data,
+            is_extended_id=False
+        )
+
+        try:
+            self.can_bus.send(msg)
+            return True
+        except can.CanError as e:
+            print(f"Message failed to send: {e}")
+            return False
+            
+    def shutdown(self):
+        """Cleanly close the CAN bus."""
+        if self.can_bus is not None:
+            self.can_bus.shutdown()
