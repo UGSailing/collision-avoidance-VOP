@@ -4,6 +4,6 @@ plotly
 matplotlib
 numpy
 scipy
-can
+python-can
 serial
 pynmea2
