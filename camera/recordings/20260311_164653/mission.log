@@ -1,8 +1,0 @@
-2026-03-11 16:46:53,386 | WARNING | Ultralytics not installed. Detection will run in no-op mode (empty detections).
-2026-03-11 16:46:53,392 | INFO | Run folder: C:\Users\gvane\Documents\burg_ir_jaar3_sem2\VOP\collision-avoidance-VOP\camera\recordings\20260311_164653
-2026-03-11 16:46:53,392 | INFO | Left video: C:\Users\gvane\Documents\burg_ir_jaar3_sem2\VOP\collision-avoidance-VOP\camera\recordings\20260311_164653\camera0.mp4
-2026-03-11 16:46:53,393 | INFO | Right video: C:\Users\gvane\Documents\burg_ir_jaar3_sem2\VOP\collision-avoidance-VOP\camera\recordings\20260311_164653\camera1.mp4
-2026-03-11 16:46:53,393 | INFO | Detections log: C:\Users\gvane\Documents\burg_ir_jaar3_sem2\VOP\collision-avoidance-VOP\camera\recordings\20260311_164653\detections.jsonl
-2026-03-11 16:46:53,394 | INFO | Depth calculation: dual-camera
-2026-03-11 16:46:53,394 | WARNING | Running in --mock-no-cameras mode. No real camera/video input; logs will contain '-' placeholders.
-2026-03-11 16:46:54,385 | INFO | Finished run.

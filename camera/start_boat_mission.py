@@ -38,6 +38,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 
 
 def import_runtime_dependencies(require_cameras: bool = True) -> None:
+    """@brief Import optional runtime dependencies and expose them as globals."""
     global Picamera2, H264Encoder, FfmpegOutput, YOLO
 
     if require_cameras:
@@ -91,6 +92,7 @@ class DetectionEngine:
         conf_threshold: float,
         class_aliases: dict[str, str],
     ) -> None:
+        """@brief Initialize YOLO-based detection engine and label alias mapping."""
         self.conf_threshold = conf_threshold
         self.class_aliases = class_aliases
 
@@ -108,6 +110,7 @@ class DetectionEngine:
         logging.info("Loaded YOLO model: %s", model_path)
 
     def detect(self, frame_bgr: np.ndarray) -> list[DetectionRecord]:
+        """@brief Run object detection on one BGR frame and return normalized records."""
         if not self.model:
             return []
 
@@ -161,16 +164,19 @@ class DepthEstimator:
         left_detections: list[DetectionRecord],
         right_detections: list[DetectionRecord],
     ) -> tuple[list[DetectionRecord], list[DetectionRecord]]:
+        """@brief Return detections unchanged when no depth strategy is active."""
         return left_detections, right_detections
 
 
 class CalibratedDepthEstimator(DepthEstimator):
     def __init__(self, intrinsics: CamIntrinsics) -> None:
+        """@brief Store camera intrinsics shared by calibrated depth estimators."""
         self.intrinsics = intrinsics
 
     def _annotate_detection(
         self, detection: DetectionRecord, distance_m: float | None
     ) -> DetectionRecord:
+        """@brief Attach distance and axis offset to a detection record."""
         axis_offset = self._estimate_axis_offset_m(distance_m, detection.center_x)
         return replace(
             detection,
@@ -181,6 +187,7 @@ class CalibratedDepthEstimator(DepthEstimator):
     def _estimate_axis_offset_m(
         self, distance_m: float | None, center_x: float
     ) -> float | None:
+        """@brief Compute lateral offset from optical axis at the estimated depth."""
         if distance_m is None:
             return None
 
@@ -193,6 +200,7 @@ class WidthDepthEstimator(CalibratedDepthEstimator):
     def __init__(
         self, intrinsics: CamIntrinsics, object_width_m: dict[str, float]
     ) -> None:
+        """@brief Initialize monocular width-based depth estimator."""
         super().__init__(intrinsics)
         self.object_width_m = object_width_m
 
@@ -201,6 +209,7 @@ class WidthDepthEstimator(CalibratedDepthEstimator):
         left_detections: list[DetectionRecord],
         right_detections: list[DetectionRecord],
     ) -> tuple[list[DetectionRecord], list[DetectionRecord]]:
+        """@brief Estimate depth independently for left and right detections."""
         return (
             [
                 self._annotate_detection(det, self._estimate_distance_m(det))
@@ -213,6 +222,7 @@ class WidthDepthEstimator(CalibratedDepthEstimator):
         )
 
     def _estimate_distance_m(self, detection: DetectionRecord) -> float | None:
+        """@brief Estimate distance from known object width and bbox pixel width."""
         x1, _, x2, _ = detection.bbox_xyxy
         width_px = max(1.0, x2 - x1)
         object_width = self.object_width_m.get(detection.label)
@@ -233,6 +243,7 @@ class DualCameraDepthEstimator(CalibratedDepthEstimator):
         min_disparity_px: float,
         max_vertical_gap_px: float,
     ) -> None:
+        """@brief Initialize stereo depth estimator and match constraints."""
         super().__init__(intrinsics)
         self.baseline_m = baseline_m
         self.min_disparity_px = min_disparity_px
@@ -243,6 +254,7 @@ class DualCameraDepthEstimator(CalibratedDepthEstimator):
         left_detections: list[DetectionRecord],
         right_detections: list[DetectionRecord],
     ) -> tuple[list[DetectionRecord], list[DetectionRecord]]:
+        """@brief Match left/right detections and assign stereo depth per match."""
         annotated_left = list(left_detections)
         annotated_right = list(right_detections)
         unmatched_right = set(range(len(right_detections)))
@@ -276,6 +288,7 @@ class DualCameraDepthEstimator(CalibratedDepthEstimator):
         right_detections: list[DetectionRecord],
         unmatched_right: set[int],
     ) -> int | None:
+        """@brief Find the best right-camera match for one left-camera detection."""
         best_index: int | None = None
         best_score: tuple[float, float] | None = None
 
@@ -305,6 +318,7 @@ class DualCameraDepthEstimator(CalibratedDepthEstimator):
         return best_index
 
     def _estimate_distance_m(self, disparity_px: float) -> float | None:
+        """@brief Convert disparity in pixels to metric depth using stereo geometry."""
         try:
             distance_m = depth_from_disparity(
                 disparity_px, self.intrinsics.fx, self.baseline_m
@@ -318,6 +332,7 @@ class DualCameraDepthEstimator(CalibratedDepthEstimator):
 
     @staticmethod
     def _bbox_width_px(detection: DetectionRecord) -> float:
+        """@brief Return bbox width in pixels with a lower bound of 1."""
         x1, _, x2, _ = detection.bbox_xyxy
         return max(1.0, x2 - x1)
 
@@ -330,6 +345,7 @@ def build_depth_estimator(
     stereo_min_disparity_px: float,
     stereo_max_vertical_gap_px: float,
 ) -> DepthEstimator:
+    """@brief Build a depth estimator instance based on selected strategy."""
     if depth_calculation == "none":
         return DepthEstimator()
 
@@ -351,33 +367,9 @@ def build_depth_estimator(
 
     raise ValueError(f"Unsupported depth calculation: {depth_calculation}")
 
-    def _estimate_distance_m(self, label: str, width_px: float) -> float | None:
-        if width_px <= 0:
-            return None
-
-        object_width = self.object_width_m.get(label)
-        if object_width is None:
-            return None
-
-        # Monocular distance approximation: Z = fx * W_real / W_pixels.
-        distance_m = (self.intrinsics.fx * object_width) / width_px
-        if distance_m <= 0 or not math.isfinite(distance_m):
-            return None
-        return float(distance_m)
-
-    def _estimate_axis_offset_m(
-        self, distance_m: float | None, center_x: float
-    ) -> float | None:
-        if distance_m is None:
-            return None
-
-        # Lateral offset from optical axis at the estimated depth.
-        return float(
-            ((center_x - self.intrinsics.cx) / self.intrinsics.fx) * distance_m
-        )
-
 
 def load_intrinsics(calib_yaml_path: Path) -> CamIntrinsics:
+    """@brief Load camera intrinsics fx and cx from calibration YAML."""
     with calib_yaml_path.open("r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
 
@@ -392,6 +384,7 @@ def load_intrinsics(calib_yaml_path: Path) -> CamIntrinsics:
 
 
 def parse_json_dict(raw: str, field_name: str) -> dict[str, Any]:
+    """@brief Parse and validate a JSON object from CLI input."""
     try:
         value = json.loads(raw)
     except json.JSONDecodeError as exc:
@@ -403,6 +396,7 @@ def parse_json_dict(raw: str, field_name: str) -> dict[str, Any]:
 
 
 def configure_logging(log_path: Path) -> None:
+    """@brief Configure console and file logging for a mission run."""
     log_path.parent.mkdir(parents=True, exist_ok=True)
     handlers = [
         logging.StreamHandler(sys.stdout),
@@ -416,6 +410,7 @@ def configure_logging(log_path: Path) -> None:
 
 
 def create_parser() -> argparse.ArgumentParser:
+    """@brief Create and return the command-line argument parser."""
     parser = argparse.ArgumentParser(
         description="Start dual-camera recording and write 10Hz object log lines."
     )
@@ -500,6 +495,7 @@ def create_parser() -> argparse.ArgumentParser:
 
 
 def build_camera(camera_id: int, width: int, height: int, fps: int) -> Any:
+    """@brief Create and configure one Picamera2 camera instance."""
     camera = Picamera2(camera_id)
     video_cfg = camera.create_video_configuration(
         main={"size": (width, height), "format": "RGB888"},
@@ -510,6 +506,7 @@ def build_camera(camera_id: int, width: int, height: int, fps: int) -> Any:
 
 
 def start_recording(camera: Any, output_path: Path, bitrate: int = 8_000_000) -> None:
+    """@brief Start H264 recording for one camera to an MP4 file."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
     encoder = H264Encoder(bitrate=bitrate)
     output = FfmpegOutput(str(output_path))
@@ -517,6 +514,7 @@ def start_recording(camera: Any, output_path: Path, bitrate: int = 8_000_000) ->
 
 
 def stop_recording(camera: Any) -> None:
+    """@brief Stop recording and safely close a camera, ignoring shutdown errors."""
     try:
         camera.stop_recording()
     except Exception:
@@ -532,6 +530,7 @@ def stop_recording(camera: Any) -> None:
 
 
 def main() -> int:
+    """@brief Run mission loop: capture, detect, estimate depth, and log results."""
     args = create_parser().parse_args()
     import_runtime_dependencies(require_cameras=not args.mock_no_cameras)
 
@@ -586,6 +585,7 @@ def main() -> int:
     stop_requested = False
 
     def _signal_handler(signum: int, _frame: Any) -> None:
+        """@brief Handle process signals and request graceful loop shutdown."""
         nonlocal stop_requested
         stop_requested = True
         logging.info("Signal %s received, stopping...", signum)
