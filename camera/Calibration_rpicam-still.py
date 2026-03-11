@@ -10,18 +10,24 @@ import cv2
 import subprocess
 import time
 
+
 def start_preview(camera_id: int, width: int, height: int):
     # -t 0 = oneindig
     # --qt-preview = Qt venster (handig). Als dit niet werkt, laat die flag weg.
     cmd = [
         "rpicam-hello",
-        "-t", "0",
-        "--camera", str(camera_id),
-        "--width", str(width),
-        "--height", str(height),
+        "-t",
+        "0",
+        "--camera",
+        str(camera_id),
+        "--width",
+        str(width),
+        "--height",
+        str(height),
         "--qt-preview",
     ]
     return subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
 
 def stop_preview(p):
     if p is None:
@@ -34,7 +40,10 @@ def stop_preview(p):
             p.kill()
             p.wait(timeout=2)
 
-def capture_with_preview(out_dir, n, camera_id, width, height, settle_ms=200, delay_s=0.0):
+
+def capture_with_preview(
+    out_dir, n, camera_id, width, height, settle_ms=200, delay_s=0.0
+):
     os.makedirs(out_dir, exist_ok=True)
 
     print("[PREVIEW] Starting live preview (rpicam-hello).")
@@ -43,7 +52,11 @@ def capture_with_preview(out_dir, n, camera_id, width, height, settle_ms=200, de
     i = 0
     try:
         while i < n:
-            key = input("Press 'c' + Enter to capture, 'q' + Enter to quit: ").strip().lower()
+            key = (
+                input("Press 'c' + Enter to capture, 'q' + Enter to quit: ")
+                .strip()
+                .lower()
+            )
             if key == "q":
                 break
             if key != "c":
@@ -56,17 +69,24 @@ def capture_with_preview(out_dir, n, camera_id, width, height, settle_ms=200, de
             fname = os.path.join(out_dir, f"img_{i:03d}.jpg")
             cmd = [
                 "rpicam-still",
-                "--camera", str(camera_id),
-                "--output", fname,
-                "--timeout", str(settle_ms),
-                "--width", str(width),
-                "--height", str(height),
+                "--camera",
+                str(camera_id),
+                "--output",
+                fname,
+                "--timeout",
+                str(settle_ms),
+                "--width",
+                str(width),
+                "--height",
+                str(height),
                 "--nopreview",
-                "--denoise", "off",
-                "--quality", "95",
+                "--denoise",
+                "off",
+                "--quality",
+                "95",
             ]
             print("  ", " ".join(cmd))
-            code, out, err = run(cmd, timeout=max(10, int(settle_ms/1000) + 10))
+            code, out, err = run(cmd, timeout=max(10, int(settle_ms / 1000) + 10))
             if code != 0 or not os.path.exists(fname):
                 print("[ERROR] capture failed:", (err.strip() or out.strip()))
                 # probeer preview terug te starten zodat je niet “blind” valt
@@ -86,14 +106,21 @@ def capture_with_preview(out_dir, n, camera_id, width, height, settle_ms=200, de
         stop_preview(preview)
 
     return i
+
+
 def run(cmd, timeout=30):
 
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     return r.returncode, r.stdout, r.stderr
 
-def capture_images_keypress_rpicam(out_dir, n, camera_id, width, height, settle_ms, delay_s):
+
+def capture_images_keypress_rpicam(
+    out_dir, n, camera_id, width, height, settle_ms, delay_s
+):
     os.makedirs(out_dir, exist_ok=True)
-    print(f"[CAPTURE] rpicam-still key capture: need {n} images from camera {camera_id} -> {out_dir}")
+    print(
+        f"[CAPTURE] rpicam-still key capture: need {n} images from camera {camera_id} -> {out_dir}"
+    )
     print("Controls: type 'c' + Enter = capture, 'q' + Enter = quit")
 
     i = 0
@@ -110,18 +137,25 @@ def capture_images_keypress_rpicam(out_dir, n, camera_id, width, height, settle_
         # IMPORTANT: use auto exposure by NOT forcing shutter/gain/awbgains
         cmd = [
             "rpicam-still",
-            "--camera", str(camera_id),
-            "--output", fname,
-            "--timeout", str(settle_ms),     # let AE/AWB settle
-            "--width", str(width),
-            "--height", str(height),
+            "--camera",
+            str(camera_id),
+            "--output",
+            fname,
+            "--timeout",
+            str(settle_ms),  # let AE/AWB settle
+            "--width",
+            str(width),
+            "--height",
+            str(height),
             "--nopreview",
-            "--denoise", "off",
-            "--quality", "95",
+            "--denoise",
+            "off",
+            "--quality",
+            "95",
         ]
 
         print("  ", " ".join(cmd))
-        code, out, err = run(cmd, timeout=max(10, int(settle_ms/1000) + 10))
+        code, out, err = run(cmd, timeout=max(10, int(settle_ms / 1000) + 10))
 
         if code != 0 or not os.path.exists(fname):
             print("[ERROR] capture failed:", (err.strip() or out.strip()))
@@ -134,6 +168,7 @@ def capture_images_keypress_rpicam(out_dir, n, camera_id, width, height, settle_
             time.sleep(delay_s)
 
     return i >= 10
+
 
 def calibrate(images, board_cols, board_rows, square_size_m, show=False):
     pattern_size = (board_cols, board_rows)
@@ -155,8 +190,9 @@ def calibrate(images, board_cols, board_rows, square_size_m, show=False):
         img_size = (gray.shape[1], gray.shape[0])
 
         found, corners = cv2.findChessboardCorners(
-            gray, pattern_size,
-            flags=cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_NORMALIZE_IMAGE
+            gray,
+            pattern_size,
+            flags=cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_NORMALIZE_IMAGE,
         )
 
         if not found:
@@ -181,7 +217,9 @@ def calibrate(images, board_cols, board_rows, square_size_m, show=False):
     if good < 10:
         raise RuntimeError(f"Too few valid images ({good}). Aim for 15–30 good shots.")
 
-    ret, K, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, img_size, None, None)
+    ret, K, dist, rvecs, tvecs = cv2.calibrateCamera(
+        objpoints, imgpoints, img_size, None, None
+    )
 
     # RMSE in pixels
     total_err = 0.0
@@ -193,11 +231,19 @@ def calibrate(images, board_cols, board_rows, square_size_m, show=False):
         total_pts += len(objpoints[i])
     rmse = float(np.sqrt(total_err / total_pts))
 
-    return {"image_size": img_size, "rms": float(ret), "rmse_px": rmse, "K": K, "dist": dist}
+    return {
+        "image_size": img_size,
+        "rms": float(ret),
+        "rmse_px": rmse,
+        "K": K,
+        "dist": dist,
+    }
+
 
 def save_yaml(out_path, data):
     try:
         import yaml
+
         payload = {
             "image_size": [int(data["image_size"][0]), int(data["image_size"][1])],
             "rms": data["rms"],
@@ -219,27 +265,44 @@ def save_yaml(out_path, data):
         fs.release()
         print(f"[SAVE] {out_path} (OpenCV FileStorage; install python3-yaml for YAML)")
 
+
 def main():
-    ap = argparse.ArgumentParser(description="Single-camera chessboard calibration (rpicam-still + key capture, no OpenCV preview).")
+    ap = argparse.ArgumentParser(
+        description="Single-camera chessboard calibration (rpicam-still + key capture, no OpenCV preview)."
+    )
     ap.add_argument("--camera", type=int, default=0)
     ap.add_argument("--cols", type=int, default=6, help="inner corners cols")
     ap.add_argument("--rows", type=int, default=8, help="inner corners rows")
-    ap.add_argument("--square", type=float, default=0.0285, help="square size in meters")
+    ap.add_argument(
+        "--square", type=float, default=0.0285, help="square size in meters"
+    )
     ap.add_argument("--out", default="calib_cam0.yaml")
     ap.add_argument("--capture", type=int, default=30)
     ap.add_argument("--dir", default="calib_cam0_imgs")
-    ap.add_argument("--w", type=int, default=4056)
-    ap.add_argument("--h", type=int, default=3040)
-    ap.add_argument("--settle-ms", type=int, default=1500, help="AE/AWB settle time per capture")
-    ap.add_argument("--delay", type=float, default=0.0, help="extra delay after each capture")
+    ap.add_argument("--w", type=int, default=1920)
+    ap.add_argument("--h", type=int, default=1080)
+    ap.add_argument(
+        "--settle-ms", type=int, default=1500, help="AE/AWB settle time per capture"
+    )
+    ap.add_argument(
+        "--delay", type=float, default=0.0, help="extra delay after each capture"
+    )
     ap.add_argument("--use-existing", action="store_true")
     ap.add_argument("--show", action="store_true")
     args = ap.parse_args()
 
     if not args.use_existing:
         # Kies hier met live preview of zonder
-        ok = capture_with_preview(args.dir, args.capture, args.camera, args.w, args.h, args.settle_ms, args.delay)
-        #ok = capture_images_keypress_rpicam(args.dir, args.capture, args.camera, args.w, args.h, args.settle_ms, args.delay)
+        ok = capture_with_preview(
+            args.dir,
+            args.capture,
+            args.camera,
+            args.w,
+            args.h,
+            args.settle_ms,
+            args.delay,
+        )
+        # ok = capture_images_keypress_rpicam(args.dir, args.capture, args.camera, args.w, args.h, args.settle_ms, args.delay)
         if not ok:
             return
 
@@ -248,7 +311,9 @@ def main():
         print("[ERROR] No images found.")
         return
 
-    print(f"[CALIB] Using {len(images)} images. Pattern {args.cols}x{args.rows}, square={args.square}m")
+    print(
+        f"[CALIB] Using {len(images)} images. Pattern {args.cols}x{args.rows}, square={args.square}m"
+    )
     data = calibrate(images, args.cols, args.rows, args.square, show=args.show)
 
     print("\n=== RESULTS ===")
@@ -259,6 +324,7 @@ def main():
     print("dist:\n", data["dist"])
 
     save_yaml(args.out, data)
+
 
 if __name__ == "__main__":
     main()
