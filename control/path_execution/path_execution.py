@@ -1,6 +1,6 @@
 import pandas as pd
 import math
-from can_communication import BoatCANInterface
+from control.path_execution.can_communication import BoatCANInterface
 
 
 """

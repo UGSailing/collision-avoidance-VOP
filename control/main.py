@@ -1,3 +1,4 @@
+import asyncio
 import pandas as pd
 import threading
 import subprocess
@@ -10,13 +11,19 @@ from path_execution import follow_path
 
 
 def collection_loop(stop_event: threading.Event, run_dir: Path):
-    collector = DataCollector(run_dir)
-    while not stop_event.is_set():
-        try:
-            collector.update_data()
-            stop_event.wait(10)
-        except Exception as e:
-            print(f"Data collection error: {e}")
+    async def _run():
+        async_stop = asyncio.Event()
+
+        async def _bridge():
+            # Wait for the threading stop_event in a thread-pool so the event loop stays free
+            await asyncio.get_running_loop().run_in_executor(None, stop_event.wait)
+            async_stop.set()
+
+        asyncio.create_task(_bridge())
+        collector = DataCollector(run_dir)
+        await collector.run(async_stop)
+
+    asyncio.run(_run())
 
 def planning_loop(stop_event: threading.Event, run_dir: Path):
     # initialize the mapper

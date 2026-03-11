@@ -6,4 +6,5 @@ numpy
 scipy
 python-can
 pyserial
+pyserial-asyncio
 pynmea2
