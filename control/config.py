@@ -12,9 +12,9 @@ MAX_RUDDER_TURN = 500     # Maximum raw units the rudder is allowed to turn left
 P_GAIN = 5.0              # Proportional gain: How aggressively the boat steers towards the path
 
 # devices
-GPS_PORT = '/dev/ttyACM0'
+GPS_PORT = '/dev/ttyAMA0'
 GPS_BAUD = 115200
-GPS_UPDATE_RATE_HZ = 20 # Hz
+GPS_UPDATE_RATE_HZ = 2 # Hz
 READ_TIMEOUT = 0.1
 CAN_CHANNEL = 'can0'
 CAN_BUSTYPE = 'socketcan'

@@ -48,7 +48,7 @@ def execution_loop(stop_event: threading.Event, run_dir: Path):
     path_follower = PathFollower(run_dir)
     while not stop_event.is_set():
         try:
-            path_follower.follow_path(run_dir)
+            # path_follower.follow_path(run_dir)
             stop_event.wait(10)
         except Exception as e:
             print(f"Path execution error: {e}")
