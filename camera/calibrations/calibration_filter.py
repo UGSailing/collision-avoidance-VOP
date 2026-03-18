@@ -10,10 +10,10 @@ import yaml
 
 ### gebruikt YAML file, check of bestaat en juiste resolutie
 ###  - Press 'c' to capture a still with rpicam-still (AE/AWB settle time applies)
-### python3 Calibration_filter.py --calib calib_cam0.yaml --camera 0 --out captures --alpha 0
+### python3 calibrations/calibration_filter.py --calib calibration_yamls/camera_calibration.yaml --camera 0 --out captures --alpha 0
 
 ### met bestaande map
-### python3 Calibration_filter.py --calib calib_cam0.yaml --input-dir calib_good_calibration_imgs --out captures --alpha 0
+### python3 calibrations/calibration_filter.py --calib calib_cam0.yaml --input-dir calib_good_calibration_imgs --out captures --alpha 0
 
 ### met PNG's:
 ### python3 Calibration_filter.py --calib calib_cam0.yaml --input-dir calib_good_calibration_imgs --glob "*.png" --out captures --alpha 0
@@ -131,11 +131,11 @@ def process_existing_images(input_dir, pattern, out_dir, w, h, map1, map2, roi, 
                 )
             disp = np.hstack([frame, disp_und])
 
-        cv2.imshow("RAW | UNDISTORTED", disp)
-        k = cv2.waitKey(300) & 0xFF
-        if k == ord("q"):
-            print("[INFO] Stopped by user.")
-            break
+        # cv2.imshow("RAW | UNDISTORTED", disp)
+        # k = cv2.waitKey(300) & 0xFF
+        # if k == ord("q"):
+        #     print("[INFO] Stopped by user.")
+        #     break
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--calib", default="calib_cam0.yaml", help="Path to calibration YAML")

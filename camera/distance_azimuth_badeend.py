@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Estimate badeend distance and azimuth from a single camera using duck.pt."""
 # rpi camera:
-#python .\collision-avoidance-VOP\camera\distance_azimuth_badeend.py --picamera --object-height 0.10
+#python python distance_azimuth_badeend.py --picamera --object-height 0.13
 #webcam:
 # python .\collision-avoidance-VOP\camera\distance_azimuth_badeend.py --webcam --object-height 0.10
 # single image:
