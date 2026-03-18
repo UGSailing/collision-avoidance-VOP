@@ -14,6 +14,19 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import yaml
+from camera.depth_calculation.single_camera_depth_calculation import (
+    distance_and_angle_from_bbox,
+)
+
+
+"""
+python camera/start_boat_mission.py --backend webcam --webcam-left 0 --webcam-right -1 --model duck.pt --single-camera-depth --object-height-m 0.13 --calib-yaml camera/calibration_yamls/camera_calibration.yaml
+"""
+
+"""
+python start_boat_mission.py --backend pi --camera-left 0 --camera-right 1 --model duck.pt --single-camera-depth --object-height-m 0.13 --calib-yaml camera/calibration_yamls/camera_calibration.yaml
+"""
 
 try:
     import cv2
@@ -44,6 +57,26 @@ def import_picamera_runtime() -> None:
     FfmpegOutput = getattr(outputs_mod, "FfmpegOutput")
 
 
+def load_intrinsics_from_yaml(
+    calib_yaml_path: Path,
+) -> tuple[float, float, float, float]:
+    with calib_yaml_path.open("r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+
+    if "K" not in data:
+        raise ValueError(f"Calibration file {calib_yaml_path} has no 'K' matrix")
+
+    K = np.asarray(data["K"], dtype=float)
+    if K.shape != (3, 3):
+        raise ValueError(f"Expected K shape (3, 3), got {K.shape}")
+
+    fx = float(K[0, 0])
+    fy = float(K[1, 1])
+    cx = float(K[0, 2])
+    cy = float(K[1, 2])
+    return fx, fy, cx, cy
+
+
 def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run mission on Pi cameras or laptop webcam with same script.",
@@ -62,6 +95,23 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument("--log-interval", type=float, default=0.2)
     parser.add_argument("--model", type=str, default="duck.pt")
     parser.add_argument("--conf", type=float, default=0.5)
+    parser.add_argument(
+        "--single-camera-depth",
+        action="store_true",
+        help="Estimate distance/angle from bbox height using one camera model",
+    )
+    parser.add_argument(
+        "--object-height-m",
+        type=float,
+        default=0.13,
+        help="Real-world object height in meters used for single-camera depth",
+    )
+    parser.add_argument(
+        "--calib-yaml",
+        type=Path,
+        default=SCRIPT_DIR / "calibration_yamls" / "camera_calibration.yaml",
+        help="Calibration YAML path containing K matrix (fx, fy, cx, cy)",
+    )
 
     parser.add_argument("--camera-left", type=int, default=0, help="Pi left camera id")
     parser.add_argument(
@@ -201,6 +251,37 @@ def detect(
     return output
 
 
+def enrich_detections_with_single_camera_depth(
+    detections: list[dict[str, Any]],
+    object_height_m: float,
+    fx: float,
+    fy: float,
+    cx: float,
+    cy: float,
+) -> None:
+    for detection in detections:
+        bbox_xyxy = detection.get("bbox_xyxy")
+        if not isinstance(bbox_xyxy, list) or len(bbox_xyxy) != 4:
+            detection["distance_m"] = None
+            detection["angle_deg"] = None
+            continue
+
+        try:
+            distance_m, angle_deg = distance_and_angle_from_bbox(
+                bbox=tuple(float(v) for v in bbox_xyxy),
+                object_height_m=object_height_m,
+                fx=fx,
+                fy=fy,
+                cx=cx,
+                cy=cy,
+            )
+            detection["distance_m"] = round(float(distance_m), 3)
+            detection["angle_deg"] = round(float(angle_deg), 3)
+        except ValueError:
+            detection["distance_m"] = None
+            detection["angle_deg"] = None
+
+
 def main() -> int:
     args = create_parser().parse_args()
 
@@ -234,6 +315,25 @@ def main() -> int:
     logging.info("Log interval: %s sec", args.log_interval)
 
     model = YOLO(args.model)
+
+    depth_intrinsics: tuple[float, float, float, float] | None = None
+    if args.single_camera_depth:
+        try:
+            depth_intrinsics = load_intrinsics_from_yaml(args.calib_yaml)
+        except (FileNotFoundError, ValueError) as exc:
+            raise SystemExit(
+                f"Could not load intrinsics from --calib-yaml={args.calib_yaml}: {exc}"
+            ) from exc
+
+        fx, fy, cx, cy = depth_intrinsics
+        logging.info(
+            "Single-camera depth enabled with intrinsics from %s | fx=%.3f fy=%.3f cx=%.3f cy=%.3f",
+            args.calib_yaml,
+            fx,
+            fy,
+            cx,
+            cy,
+        )
 
     left_cam = None
     right_cam = None
@@ -371,6 +471,20 @@ def main() -> int:
                             detections += detect(
                                 right_frame, model, args.conf, right_name
                             )
+
+                    if args.single_camera_depth:
+                        if depth_intrinsics is None:
+                            raise RuntimeError("Depth intrinsics were not initialized.")
+
+                        fx, fy, cx, cy = depth_intrinsics
+                        enrich_detections_with_single_camera_depth(
+                            detections=detections,
+                            object_height_m=args.object_height_m,
+                            fx=fx,
+                            fy=fy,
+                            cx=cx,
+                            cy=cy,
+                        )
 
                     payload = {
                         "timestamp_utc": ts_utc,
