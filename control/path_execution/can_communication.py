@@ -14,7 +14,7 @@ class BoatCANInterface:
                 bitrate=bitrate
             )
             print(f"CAN Bus initialized on {channel} at {bitrate} bps.")
-        except can.CanError as e:
+        except (can.CanError, OSError) as e:
             print(f"Failed to initialize CAN bus: {e}")
             self.bus = None
 

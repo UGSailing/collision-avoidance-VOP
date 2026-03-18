@@ -7,6 +7,10 @@ from dash.dependencies import Input, Output
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import config
 
 # parse arguments
 parser = argparse.ArgumentParser()
@@ -90,6 +94,51 @@ def update_map(n):
             hoverinfo="skip",
             name="path"
         ))
+
+
+    # --- ADD THIS GEOFENCE TRACE ---
+    if hasattr(config, 'GEOFENCE_GPS') and config.GEOFENCE_POND_ZWIJNAARDE:
+        # Extract Lat/Lon lists
+        geo_lats = [pt[0] for pt in config.GEOFENCE_POND_ZWIJNAARDE]
+        geo_lons = [pt[1] for pt in config.GEOFENCE_POND_ZWIJNAARDE]
+        
+        # Close the polygon by adding the first point to the end
+        geo_lats.append(geo_lats[0])
+        geo_lons.append(geo_lons[0])
+
+        fig.add_trace(go.Scattermap(
+            lat=geo_lats,
+            lon=geo_lons,
+            mode="lines",
+            fill="toself", 
+            fillcolor="rgba(0, 0, 255, 0.15)", 
+            line=dict(width=3, color="blue"), # <--- FIXED
+            hoverinfo="skip",
+            name="geofence"
+        ))
+
+    # --- 2. ADD EXCLUSION ZONES (KEEP-OUT) ---
+    if hasattr(config, 'EXCLUSION_ZONES') and config.EXCLUSION_ZONES:
+        for i, zone in enumerate(config.EXCLUSION_ZONES):
+            # Extract Lat/Lon for this specific exclusion polygon
+            ex_lats = [pt[0] for pt in zone]
+            ex_lons = [pt[1] for pt in zone]
+            
+            # Close the polygon
+            ex_lats.append(ex_lats[0])
+            ex_lons.append(ex_lons[0])
+
+            fig.add_trace(go.Scattermap(
+                lat=ex_lats,
+                lon=ex_lons,
+                mode="lines",
+                fill="toself", 
+                fillcolor="rgba(255, 0, 0, 0.3)", # Reddish for danger zones
+                line=dict(width=2, color="red"),
+                hoverinfo="all",
+                name=f"Exclusion Zone {i+1}"
+            ))
+    # --------------------------------
         
 
     fig.update_layout(

@@ -16,14 +16,27 @@ def run_smart_mock(run_dir_str):
     points_path = run_dir / 'points.csv'
     path_file = run_dir / 'path.csv'
     
-    # Starting Position (Ghent)
-    lat, lon = 51.011466, 3.708731
-    heading = 0.0 
+    # 1. Wait for main.py to create the file
+    while not points_path.exists():
+        time.sleep(0.5)
+
+    # 2. Read the latest GPS point so we spawn exactly where the path starts
+    df = pd.read_csv(points_path)
+    gps_points = df[df['category'] == 'gps']
+    
+    if not gps_points.empty:
+        latest_gps = gps_points.loc[gps_points['id'].idxmax()]
+        lat = latest_gps['latitude']
+        lon = latest_gps['longitude']
+        heading = latest_gps['heading']
+    else:
+        # Fallback if the file is completely empty
+        lat, lon = 51.011466, 3.708731
+        heading = 0.0 
+
     speed = 0.000008 # Approx 1.5 knots
 
-    print(f"\n--- SMART MOCK GPS STARTING ---")
-    print(f"I am now 'steering' based on the path in: {path_file}")
-
+    print(f"Spawned boat at {lat:.6f}, {lon:.6f}. Chasing path...")
     while True:
         try:
             if not points_path.exists():
@@ -45,8 +58,8 @@ def run_smart_mock(run_dir_str):
             heading += diff * 0.3 # Turn 30% of the way each second
 
             # 3. Move the boat in the direction it's facing
-            lat += math.cos(math.radians(heading)) * speed * 0.9 # Lat is North/South
-            lon += math.sin(math.radians(heading)) * speed * 1.1 # Lon is East/West (Mercator approx)
+            lat += math.cos(math.radians(heading)) * speed * 0.9 # type: ignore # Lat is North/South
+            lon += math.sin(math.radians(heading)) * speed * 1.1 # type: ignore # Lon is East/West (Mercator approx)
 
             # 4. Save to CSV
             df = pd.read_csv(points_path)

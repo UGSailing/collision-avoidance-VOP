@@ -5,9 +5,10 @@ import subprocess
 import sys
 from pathlib import Path
 from datetime import datetime
+import config
 from data_collection import DataCollector
-from path_planning import update_path, OccupancyMapper, config
-from path_execution import follow_path
+from path_planning import update_path, OccupancyMapper
+from path_execution import PathFollower
 
 
 def collection_loop(stop_event: threading.Event, run_dir: Path):
@@ -44,9 +45,10 @@ def planning_loop(stop_event: threading.Event, run_dir: Path):
         stop_event.wait(config.PATH_UPDATE_INTERVAL)
 
 def execution_loop(stop_event: threading.Event, run_dir: Path):
+    path_follower = PathFollower(run_dir)
     while not stop_event.is_set():
         try:
-            follow_path(run_dir)
+            path_follower.follow_path(run_dir)
             stop_event.wait(10)
         except Exception as e:
             print(f"Path execution error: {e}")
@@ -66,8 +68,8 @@ if __name__ == "__main__":
     data = {
         'id': [0, 1, 2, 0, 0, 1, 2, 3, 4],
         'category': ['gps', 'gps', 'gps', 'destination', 'camera', 'camera', 'camera', 'camera', 'camera'],
-        'latitude': [51.011466, 51.011401, 51.011315, 51.011504, 51.011453, 51.011412, 51.011340, 51.011485, 51.011394],
-        'longitude': [3.708731, 3.709055, 3.709353, 3.708728, 3.708779, 3.708822, 3.708969, 3.708916, 3.709079],
+        'latitude': [51.011466, 51.011401, 51.011335, 51.011504, 51.011453, 51.011412, 51.011340, 51.011485, 51.011394],
+        'longitude': [3.708731, 3.709055, 3.709215, 3.708728, 3.708779, 3.708822, 3.708969, 3.708916, 3.709079],
         'heading': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
     }
     pd.DataFrame(data).to_csv(points_file, index=False)
