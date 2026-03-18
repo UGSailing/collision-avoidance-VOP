@@ -11,13 +11,14 @@ import signal
 import time
 from datetime import datetime
 from pathlib import Path
-from turtle import left, right
 from typing import Any
 
 import numpy as np
 import yaml
 
-from depth_calculation.single_camera_depth_calculation import *
+from depth_calculation.single_camera_depth_calculation import (
+    distance_and_angle_from_bbox,
+)
 
 
 """
@@ -306,6 +307,8 @@ def main() -> int:
 
     left_video = cam0_dir / "recording.mp4"
     right_video = cam1_dir / "recording.mp4"
+    left_annot_video = cam0_dir / "recording_annotated.mp4"
+    right_annot_video = cam1_dir / "recording_annotated.mp4"
     detections_log = run_dir / "detections.jsonl"
 
     logging.info("Run folder: %s", run_dir)
@@ -339,6 +342,8 @@ def main() -> int:
     right_cam = None
     left_writer = None
     right_writer = None
+    left_annot_writer = None
+    right_annot_writer = None
 
     left_name = "left"
     right_name = "right"
@@ -355,6 +360,12 @@ def main() -> int:
         right_cam.start()
         start_pi_recording(left_cam, left_video)
         start_pi_recording(right_cam, right_video)
+        left_annot_writer = build_webcam_writer(
+            left_annot_video, args.width, args.height, args.fps
+        )
+        right_annot_writer = build_webcam_writer(
+            right_annot_video, args.width, args.height, args.fps
+        )
 
     elif args.backend == "webcam":
         left_video = cam0_dir / "recording.mp4"
@@ -452,6 +463,8 @@ def main() -> int:
                     )
                     if left_writer is not None:
                         left_writer.write(left_annotated)
+                    if left_annot_writer is not None:
+                        left_annot_writer.write(left_annotated)
 
                     if right_cam is not None:
                         if args.backend == "pi":
@@ -478,6 +491,8 @@ def main() -> int:
                             detections += right_detections
                             if right_writer is not None:
                                 right_writer.write(right_annotated)
+                            if right_annot_writer is not None:
+                                right_annot_writer.write(right_annotated)
 
                     if args.single_camera_depth:
                         if depth_intrinsics is None:
@@ -519,6 +534,11 @@ def main() -> int:
                     left_writer.release()
                 if right_writer is not None:
                     right_writer.release()
+
+            if left_annot_writer is not None:
+                left_annot_writer.release()
+            if right_annot_writer is not None:
+                right_annot_writer.release()
 
     logging.info("Finished run.")
     return 0
