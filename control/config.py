@@ -36,12 +36,17 @@ CAN_GO_ID = 0x10    # arbitration ID that triggers run start
 CAN_STOP_ID = 0x11  # arbitration ID that triggers run stop / restart
 
 # geofencing
-GEOFENCE_POND_ZWIJNAARDE = [      # basic geofencing test boundaries
-    (51.0116, 3.7085), # Top Left
-    (51.011379, 3.709218), # Top Right
-    (51.0112, 3.7095), # Bottom Right
-    (51.0112, 3.7085),  # Bottom Left
-    (51.0114, 3.7075)  # testpoint
+GEOFENCE_POND_ZWIJNAARDE = [
+    (51.011556, 3.708620),
+    (51.011556, 3.708620),
+    (51.011323, 3.708454),
+    (51.011343, 3.708491),
+    (51.011435, 3.708564),
+    (51.011423, 3.708698),
+    (51.011423, 3.708698),
+    (51.011293, 3.709374),
+    (51.011293, 3.709374),
+    (51.011293, 3.709374)
 ]
 
 EXCLUSION_ZONES = [
