@@ -86,6 +86,58 @@ class OccupancyMapper:
         layer = binary_dilation(layer, structure=struct) # transforms object points into hitboxes
         return layer.astype(float)
 
+    def _is_boat_in_geofence(self,boat_lat, boat_lon):
+        """Checks raw GPS against the geofence."""
+        if not hasattr(config, 'GEOFENCE_GPS') or not config.GEOFENCE_POND_ZWIJNAARDE:
+            return True # Default to safe if no geofence defined
+            
+        is_inside = False
+        j = len(config.GEOFENCE_POND_ZWIJNAARDE) - 1
+        for i in range(len(config.GEOFENCE_POND_ZWIJNAARDE)):
+            lati, loni = config.GEOFENCE_POND_ZWIJNAARDE[i]
+            latj, lonj = config.GEOFENCE_POND_ZWIJNAARDE[j]
+            
+            # Note: Y is Lat, X is Lon
+            y_between = (lati > boat_lat) != (latj > boat_lat)
+            if y_between:
+                lon_intersect = loni + (boat_lat - lati) * (lonj - loni) / (latj - lati)
+                if boat_lon < lon_intersect:
+                    is_inside = not is_inside
+            j = i
+        return is_inside
+
+    def _apply_geofence(self):
+        """Sets all grid cells outside the geofence to 1 (obstacle)."""
+        if not hasattr(config, 'GEOFENCE_GPS') or not config.GEOFENCE_POND_ZWIJNAARDE:
+            return
+
+        # 1. Convert GPS geofence corners to local grid indices
+        poly_grid = []
+        center = self.size_cells // 2
+        for lat, lon in config.GEOFENCE_POND_ZWIJNAARDE:
+            x_m, y_m = self._gps_to_local(lat, lon)
+            gx = int(x_m / self.res) + center
+            gy = int(y_m / self.res) + center
+            poly_grid.append((gx, gy))
+
+        # 2. Iterate through the grid and mask out the boundary
+        # Note: If this nested loop is too slow (e.g., Grid is 1000x1000), 
+        # we can optimize this later using skimage.draw.polygon or matplotlib.path
+        # 2. Create a coordinate grid (vectorized)
+        # This creates a fast mathematical mesh of every X/Y coordinate in your array
+        x, y = np.meshgrid(np.arange(self.size_cells), np.arange(self.size_cells))
+        x, y = x.flatten(), y.flatten()
+        points = np.vstack((x,y)).T
+
+        # 3. Fast C-level ray-casting using matplotlib
+        geofence_path = Path(poly_grid)
+        
+        # Returns a boolean array of what is INSIDE the geofence
+        inside_mask = geofence_path.contains_points(points).reshape(self.size_cells, self.size_cells)
+
+        # 4. Mask the grid: Any cell NOT inside (~), set to 1.0 (obstacle)
+        self.grid[~inside_mask] = 1.0
+
     def create_grid(self, run_dir) -> np.ndarray:
         """
         Full rebuild: reads all of points.csv from scratch.

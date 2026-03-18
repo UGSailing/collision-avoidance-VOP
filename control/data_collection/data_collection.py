@@ -13,6 +13,12 @@ class DataCollector:
         self.run_dir = run_dir
         self.gps_id = 0
         self.camera_id = 0
+        self._csv_lock = asyncio.Lock()
+        self.latest_gps: dict[str, float | None] = {
+            'latitude': None,
+            'longitude': None,
+            'heading': None,
+        }
 
     async def _can_listener(self):
         bus = can.interface.Bus(
@@ -21,21 +27,20 @@ class DataCollector:
             bitrate=config.CAN_BITRATE,
         )
         reader = can.AsyncBufferedReader()
-        notifier = can.Notifier(bus, [reader], loop=asyncio.get_event_loop())
+        notifier = can.Notifier(bus, [reader], loop=asyncio.get_running_loop())
         try:
             async for msg in reader:
                 print(f"{msg.arbitration_id:X}: {msg.data}")  # temp
-                # TODO extract angle & distance from CAN msg
-                angle = msg.data[0] # placeholder
-                distance = msg.data[1] # placeholder
-                
-                df = pd.read_csv(self.run_dir / 'points.csv')
-                gps_points = df[df['category'] == 'gps']
-                current_location = gps_points.loc[gps_points['id'].idxmax()]
+                if None in self.latest_gps.values():
+                    continue  # no GPS fix yet, skip
 
-                object_direction = current_location['heading'] + angle
-                lat = current_location['latitude'] + distance * np.cos(np.radians(object_direction))
-                lon = current_location['longitude'] + distance * np.sin(np.radians(object_direction))
+                # TODO extract angle & distance from CAN msg
+                angle = 0    # placeholder
+                distance = 0 # placeholder
+
+                object_direction = self.latest_gps['heading'] + angle # type: ignore
+                lat = self.latest_gps['latitude'] + distance * np.cos(np.radians(object_direction))
+                lon = self.latest_gps['longitude'] + distance * np.sin(np.radians(object_direction))
 
                 new_row = pd.DataFrame([{
                     'id': self.camera_id,
@@ -43,14 +48,18 @@ class DataCollector:
                     'latitude': lat,
                     'longitude': lon
                 }])
-                new_row.to_csv(self.run_dir / 'points.csv', mode='a', header=False, index=False)
+                async with self._csv_lock:
+                    await asyncio.to_thread(
+                        new_row.to_csv,
+                        self.run_dir / 'points.csv',
+                        mode='a', header=False, index=False
+                    )
                 self.camera_id += 1
         finally:
             notifier.stop()
             bus.shutdown()
 
     async def _gps_listener(self):
-        # credit: https://github.com/Knio/pynmea2/blob/master/examples/read_serial.py
         try:
             stream, _ = await serial_asyncio.open_serial_connection(
                 url=config.GPS_PORT, baudrate=config.GPS_BAUDRATE
@@ -64,6 +73,11 @@ class DataCollector:
             try:
                 raw = await stream.readline()
                 msg = pynmea2.parse(raw.decode("ascii", errors="replace"))
+                self.latest_gps = { # type: ignore
+                    'latitude': msg.latitude,
+                    'longitude': msg.longitude,
+                    'heading': msg.heading,
+                }
                 new_row = pd.DataFrame([{
                     'id': self.gps_id,
                     'category': 'gps',
@@ -71,10 +85,17 @@ class DataCollector:
                     'longitude': msg.longitude,
                     'heading': msg.heading,
                 }])
-                new_row.to_csv(self.run_dir / 'points.csv', mode='a', header=False, index=False)
+                async with self._csv_lock:
+                    await asyncio.to_thread(
+                        new_row.to_csv,
+                        self.run_dir / 'points.csv',
+                        mode='a', header=False, index=False
+                    )
                 self.gps_id += 1
             except pynmea2.ParseError:
                 pass  # not every NMEA sentence has lat/lon/heading
+            except asyncio.CancelledError:
+                raise
             except Exception as e:
                 print(f"GPS error: {e}")
 
