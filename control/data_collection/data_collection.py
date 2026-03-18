@@ -50,7 +50,6 @@ class DataCollector:
             bus.shutdown()
 
     async def _gps_listener(self):
-        # credit: https://github.com/Knio/pynmea2/blob/master/examples/read_serial.py
         try:
             stream, _ = await serial_asyncio.open_serial_connection(
                 url=config.GPS_PORT, baudrate=config.GPS_BAUDRATE

@@ -1,5 +1,5 @@
 # devices
-GPS_PORT = '/dev/ttyACM0'
+GPS_PORT = '/dev/ttyAMA0'
 GPS_BAUDRATE = 115200
 READ_TIMEOUT = 0.1
 CAN_CHANNEL = 'can0'
