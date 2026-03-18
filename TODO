@@ -11,8 +11,8 @@
 
 ## Control
 ### general
-- geofencing
-- set a new destination with command in ```main.py```
+- geofencing -> done? simple implementation
+- set a new destination with command in ```main.py``` -> done?
 
 ### data collection
 - read in CAN & gps messages and put coords into csv
@@ -22,7 +22,7 @@
 
 ### path planning
 - granular occupancy map (with different strengths depending on object type?)
-- better path algorithm
+- better path algorithm -> by UGS
 
 ### path following
 - ?
