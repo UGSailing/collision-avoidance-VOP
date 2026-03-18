@@ -11,13 +11,13 @@ import signal
 import time
 from datetime import datetime
 from pathlib import Path
+from turtle import left
 from typing import Any
 
 import numpy as np
 import yaml
 
-from depth_calculation.single_camera_depth_calculation import * 
-
+from depth_calculation.single_camera_depth_calculation import *
 
 
 """
@@ -221,23 +221,23 @@ def build_webcam_writer(path: Path, width: int, height: int, fps: int) -> Any:
     )
 
 
-def detect(
-    frame_bgr: np.ndarray, model: Any, conf: float, camera_name: str
-) -> list[dict[str, Any]]:
+def detect(frame_bgr: np.ndarray, model: Any, conf: float, camera_name: str):
     prediction = model.predict(source=frame_bgr, conf=conf, verbose=False, device="cpu")
     if not prediction:
-        return []
+        return [], frame_bgr
 
     result = prediction[0]
+    annotated = result.plot()  # draws bbox + label + confidence
+
     if result.boxes is None or result.boxes.xyxy is None:
-        return []
+        return [], annotated
 
     names = result.names
     xyxy = result.boxes.xyxy.cpu().numpy()
     confs = result.boxes.conf.cpu().numpy()
     classes = result.boxes.cls.cpu().numpy().astype(int)
 
-    output: list[dict[str, Any]] = []
+    output = []
     for bbox, score, cls_id in zip(xyxy, confs, classes):
         x1, y1, x2, y2 = [float(v) for v in bbox]
         output.append(
@@ -248,7 +248,7 @@ def detect(
                 "bbox_xyxy": [round(x1, 2), round(y1, 2), round(x2, 2), round(y2, 2)],
             }
         )
-    return output
+    return output, annotated
 
 
 def enrich_detections_with_single_camera_depth(
@@ -447,7 +447,12 @@ def main() -> int:
                         if left_writer is not None:
                             left_writer.write(left_frame)
 
-                    detections = detect(left_frame, model, args.conf, left_name)
+                    detections, left_annotated = detect(
+                        left_frame, model, args.conf, left_name
+                    )
+
+                    if left_writer is not None:
+                        left_writer.write(left_annotated)
 
                     if right_cam is not None:
                         if args.backend == "pi":
