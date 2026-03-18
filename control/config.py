@@ -13,11 +13,22 @@ P_GAIN = 5.0              # Proportional gain: How aggressively the boat steers 
 
 # devices
 GPS_PORT = '/dev/ttyACM0'
-GPS_BAUDRATE = 115200
+GPS_BAUD = 115200
+GPS_UPDATE_RATE_HZ = 20 # Hz
 READ_TIMEOUT = 0.1
 CAN_CHANNEL = 'can0'
 CAN_BUSTYPE = 'socketcan'
 CAN_BITRATE = 1000000
+
+# NTRIP Configuration (Unicore / RTK)
+# username & password in env.py
+NTRIP_ENABLED = True
+NTRIP_HOST = "flepos.vlaanderen.be"
+NTRIP_PORT = 2101
+NTRIP_MOUNT = "FLEPOSVRS32GREC"
+NTRIP_USE_SSL = False
+NTRIP_SEND_GGA_EVERY = 10.0 # seconds
+USER_HEADING_OFFSET_DEG = 0.0
 
 # CAN control signals (boat_main.py autonomous mode)
 # TODO fill in with actual values

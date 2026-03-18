@@ -12,3 +12,7 @@ project repo for collision avoidance VOP
   ```bash
   pip install -r requirements.txt
   ```
+- create `env.py` and fill in credentials
+  ````python
+  NTRIP_USER = "username"
+  NTRIP_PASSWORD = "password"
