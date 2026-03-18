@@ -11,7 +11,7 @@ import signal
 import time
 from datetime import datetime
 from pathlib import Path
-from turtle import left
+from turtle import left, right
 from typing import Any
 
 import numpy as np
@@ -450,7 +450,6 @@ def main() -> int:
                     detections, left_annotated = detect(
                         left_frame, model, args.conf, left_name
                     )
-
                     if left_writer is not None:
                         left_writer.write(left_annotated)
 
@@ -473,9 +472,12 @@ def main() -> int:
                                 logging.warning("Could not read right webcam frame")
 
                         if right_frame is not None:
-                            detections += detect(
+                            right_detections, right_annotated = detect(
                                 right_frame, model, args.conf, right_name
                             )
+                            detections += right_detections
+                            if right_writer is not None:
+                                right_writer.write(right_annotated)
 
                     if args.single_camera_depth:
                         if depth_intrinsics is None:
