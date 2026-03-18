@@ -4,7 +4,7 @@ import time
 import argparse
 import subprocess
 
-# python take_images.py --out-dir images --count 10
+# python take_camera_images.py --out-dir images --count 10
 
 
 def run(cmd, timeout=30):

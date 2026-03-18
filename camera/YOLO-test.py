@@ -5,7 +5,7 @@ from ultralytics import YOLO
 model = YOLO("yolo_models/duck.pt")
 
 # Voer detectie uit op een afbeelding
-results = model("images_to_test_models/eend_camera_aan_boord.png")
+results = model("images/img_006.jpg")
 
 # Bekijk de resultaten
 for result in results:
