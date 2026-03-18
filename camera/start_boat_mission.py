@@ -1,14 +1,5 @@
 #!/usr/bin/env python3
-"""Single-entry runtime for dual-camera recording and periodic object logging.
-
-Expected Raspberry Pi runtime stack:
-- Picamera2 for dual camera access and video recording.
-- Optional Ultralytics YOLO for object detection.
-
-The script records both camera perspectives and writes a JSONL log entry every
-log interval (default 0.2s) with the current detections and estimated distance
-metrics.
-"""
+"""Simple mission runtime: record cameras + YOLO logging (no depth)."""
 
 from __future__ import annotations
 
@@ -16,505 +7,113 @@ import argparse
 import importlib
 import json
 import logging
-import math
 import signal
-import sys
 import time
-from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import numpy as np
-import yaml
 
-from camera.depth_calculation.dual_camera_depth_calculation import depth_from_disparity
+try:
+    import cv2
+except ImportError:
+    cv2 = None
 
+YOLO: Any = None
 Picamera2: Any = None
 H264Encoder: Any = None
 FfmpegOutput: Any = None
-YOLO: Any = None
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 
 
-def import_runtime_dependencies(require_cameras: bool = True) -> None:
-    """@brief Import optional runtime dependencies and expose them as globals."""
-    global Picamera2, H264Encoder, FfmpegOutput, YOLO
-
-    if require_cameras:
-        try:
-            picamera2_mod = importlib.import_module("picamera2")
-            encoders_mod = importlib.import_module("picamera2.encoders")
-            outputs_mod = importlib.import_module("picamera2.outputs")
-        except (
-            ImportError
-        ) as exc:  # pragma: no cover - runtime dependency on Raspberry Pi
-            raise SystemExit(
-                "Picamera2 is required on the Raspberry Pi. Install it first (python3-picamera2), or run with --mock-no-cameras for testing."
-            ) from exc
-
-        Picamera2 = getattr(picamera2_mod, "Picamera2")
-        H264Encoder = getattr(encoders_mod, "H264Encoder")
-        FfmpegOutput = getattr(outputs_mod, "FfmpegOutput")
-    else:
-        Picamera2 = None
-        H264Encoder = None
-        FfmpegOutput = None
-
-    try:
-        ultralytics_mod = importlib.import_module("ultralytics")
-        YOLO = getattr(ultralytics_mod, "YOLO")
-    except ImportError:  # pragma: no cover - optional dependency
-        YOLO = None
-
-
-@dataclass
-class CamIntrinsics:
-    fx: float
-    cx: float
-
-
-@dataclass
-class DetectionRecord:
-    label: str
-    confidence: float
-    center_x: float
-    center_y: float
-    distance_m: float | None
-    axis_offset_m: float | None
-    bbox_xyxy: list[float]
-
-
-class DetectionEngine:
-    def __init__(
-        self,
-        model_path: str,
-        conf_threshold: float,
-        class_aliases: dict[str, str],
-    ) -> None:
-        """@brief Initialize YOLO-based detection engine and label alias mapping."""
-        self.conf_threshold = conf_threshold
-        self.class_aliases = class_aliases
-
-        self.enabled = YOLO is not None
-        self.model = None
-        if not self.enabled:
-            logging.warning(
-                "Ultralytics not installed. Detection will run in no-op mode (empty detections)."
-            )
-            return
-
-        if YOLO is None:
-            return
-        self.model = YOLO(model_path)
-        logging.info("Loaded YOLO model: %s", model_path)
-
-    def detect(self, frame_bgr: np.ndarray) -> list[DetectionRecord]:
-        """@brief Run object detection on one BGR frame and return normalized records."""
-        if not self.model:
-            return []
-
-        prediction = self.model.predict(
-            source=frame_bgr,
-            conf=self.conf_threshold,
-            verbose=False,
-            device="cpu",
-        )
-        if not prediction:
-            return []
-
-        result = prediction[0]
-        if result.boxes is None or result.boxes.xyxy is None:
-            return []
-
-        output: list[DetectionRecord] = []
-        names = result.names
-
-        xyxy = result.boxes.xyxy.cpu().numpy()
-        confs = result.boxes.conf.cpu().numpy()
-        classes = result.boxes.cls.cpu().numpy().astype(int)
-
-        for bbox, conf, cls_id in zip(xyxy, confs, classes):
-            raw_label = str(names[int(cls_id)])
-            label = str(self.class_aliases.get(raw_label, raw_label))
-
-            x1, y1, x2, y2 = [float(v) for v in bbox]
-            width_px = max(1.0, x2 - x1)
-            center_x = (x1 + x2) / 2.0
-            center_y = (y1 + y2) / 2.0
-
-            output.append(
-                DetectionRecord(
-                    label=label,
-                    confidence=float(conf),
-                    center_x=center_x,
-                    center_y=center_y,
-                    distance_m=None,
-                    axis_offset_m=None,
-                    bbox_xyxy=[x1, y1, x2, y2],
-                )
-            )
-
-        return output
-
-
-class DepthEstimator:
-    def annotate(
-        self,
-        left_detections: list[DetectionRecord],
-        right_detections: list[DetectionRecord],
-    ) -> tuple[list[DetectionRecord], list[DetectionRecord]]:
-        """@brief Return detections unchanged when no depth strategy is active."""
-        return left_detections, right_detections
-
-
-class CalibratedDepthEstimator(DepthEstimator):
-    def __init__(self, intrinsics: CamIntrinsics) -> None:
-        """@brief Store camera intrinsics shared by calibrated depth estimators."""
-        self.intrinsics = intrinsics
-
-    def _annotate_detection(
-        self, detection: DetectionRecord, distance_m: float | None
-    ) -> DetectionRecord:
-        """@brief Attach distance and axis offset to a detection record."""
-        axis_offset = self._estimate_axis_offset_m(distance_m, detection.center_x)
-        return replace(
-            detection,
-            distance_m=distance_m,
-            axis_offset_m=axis_offset,
-        )
-
-    def _estimate_axis_offset_m(
-        self, distance_m: float | None, center_x: float
-    ) -> float | None:
-        """@brief Compute lateral offset from optical axis at the estimated depth."""
-        if distance_m is None:
-            return None
-
-        return float(
-            ((center_x - self.intrinsics.cx) / self.intrinsics.fx) * distance_m
-        )
-
-
-class WidthDepthEstimator(CalibratedDepthEstimator):
-    def __init__(
-        self, intrinsics: CamIntrinsics, object_width_m: dict[str, float]
-    ) -> None:
-        """@brief Initialize monocular width-based depth estimator."""
-        super().__init__(intrinsics)
-        self.object_width_m = object_width_m
-
-    def annotate(
-        self,
-        left_detections: list[DetectionRecord],
-        right_detections: list[DetectionRecord],
-    ) -> tuple[list[DetectionRecord], list[DetectionRecord]]:
-        """@brief Estimate depth independently for left and right detections."""
-        return (
-            [
-                self._annotate_detection(det, self._estimate_distance_m(det))
-                for det in left_detections
-            ],
-            [
-                self._annotate_detection(det, self._estimate_distance_m(det))
-                for det in right_detections
-            ],
-        )
-
-    def _estimate_distance_m(self, detection: DetectionRecord) -> float | None:
-        """@brief Estimate distance from known object width and bbox pixel width."""
-        x1, _, x2, _ = detection.bbox_xyxy
-        width_px = max(1.0, x2 - x1)
-        object_width = self.object_width_m.get(detection.label)
-        if object_width is None:
-            return None
-
-        distance_m = (self.intrinsics.fx * object_width) / width_px
-        if distance_m <= 0 or not math.isfinite(distance_m):
-            return None
-        return float(distance_m)
-
-
-class DualCameraDepthEstimator(CalibratedDepthEstimator):
-    def __init__(
-        self,
-        intrinsics: CamIntrinsics,
-        baseline_m: float,
-        min_disparity_px: float,
-        max_vertical_gap_px: float,
-    ) -> None:
-        """@brief Initialize stereo depth estimator and match constraints."""
-        super().__init__(intrinsics)
-        self.baseline_m = baseline_m
-        self.min_disparity_px = min_disparity_px
-        self.max_vertical_gap_px = max_vertical_gap_px
-
-    def annotate(
-        self,
-        left_detections: list[DetectionRecord],
-        right_detections: list[DetectionRecord],
-    ) -> tuple[list[DetectionRecord], list[DetectionRecord]]:
-        """@brief Match left/right detections and assign stereo depth per match."""
-        annotated_left = list(left_detections)
-        annotated_right = list(right_detections)
-        unmatched_right = set(range(len(right_detections)))
-
-        for left_index, left_detection in enumerate(left_detections):
-            right_index = self._find_match(
-                left_detection, right_detections, unmatched_right
-            )
-            if right_index is None:
-                continue
-
-            right_detection = right_detections[right_index]
-            disparity_px = abs(left_detection.center_x - right_detection.center_x)
-            distance_m = self._estimate_distance_m(disparity_px)
-            if distance_m is None:
-                continue
-
-            annotated_left[left_index] = self._annotate_detection(
-                left_detection, distance_m
-            )
-            annotated_right[right_index] = self._annotate_detection(
-                right_detection, distance_m
-            )
-            unmatched_right.remove(right_index)
-
-        return annotated_left, annotated_right
-
-    def _find_match(
-        self,
-        left_detection: DetectionRecord,
-        right_detections: list[DetectionRecord],
-        unmatched_right: set[int],
-    ) -> int | None:
-        """@brief Find the best right-camera match for one left-camera detection."""
-        best_index: int | None = None
-        best_score: tuple[float, float] | None = None
-
-        for right_index in unmatched_right:
-            candidate = right_detections[right_index]
-            if candidate.label != left_detection.label:
-                continue
-
-            vertical_gap = abs(left_detection.center_y - candidate.center_y)
-            if vertical_gap > self.max_vertical_gap_px:
-                continue
-
-            disparity_px = abs(left_detection.center_x - candidate.center_x)
-            if disparity_px < self.min_disparity_px:
-                continue
-
-            score = (
-                vertical_gap,
-                abs(
-                    self._bbox_width_px(left_detection) - self._bbox_width_px(candidate)
-                ),
-            )
-            if best_score is None or score < best_score:
-                best_score = score
-                best_index = right_index
-
-        return best_index
-
-    def _estimate_distance_m(self, disparity_px: float) -> float | None:
-        """@brief Convert disparity in pixels to metric depth using stereo geometry."""
-        try:
-            distance_m = depth_from_disparity(
-                disparity_px, self.intrinsics.fx, self.baseline_m
-            )
-        except ValueError:
-            return None
-
-        if distance_m <= 0 or not math.isfinite(distance_m):
-            return None
-        return float(distance_m)
-
-    @staticmethod
-    def _bbox_width_px(detection: DetectionRecord) -> float:
-        """@brief Return bbox width in pixels with a lower bound of 1."""
-        x1, _, x2, _ = detection.bbox_xyxy
-        return max(1.0, x2 - x1)
-
-
-def build_depth_estimator(
-    depth_calculation: str,
-    intrinsics: CamIntrinsics | None,
-    object_width_m: dict[str, float],
-    stereo_baseline_m: float,
-    stereo_min_disparity_px: float,
-    stereo_max_vertical_gap_px: float,
-) -> DepthEstimator:
-    """@brief Build a depth estimator instance based on selected strategy."""
-    if depth_calculation == "none":
-        return DepthEstimator()
-
-    if intrinsics is None:
-        raise ValueError(
-            "Calibration intrinsics are required for the selected depth calculation"
-        )
-
-    if depth_calculation == "bbox-width":
-        return WidthDepthEstimator(intrinsics=intrinsics, object_width_m=object_width_m)
-
-    if depth_calculation == "dual-camera":
-        return DualCameraDepthEstimator(
-            intrinsics=intrinsics,
-            baseline_m=stereo_baseline_m,
-            min_disparity_px=stereo_min_disparity_px,
-            max_vertical_gap_px=stereo_max_vertical_gap_px,
-        )
-
-    raise ValueError(f"Unsupported depth calculation: {depth_calculation}")
-
-
-def load_intrinsics(calib_yaml_path: Path) -> CamIntrinsics:
-    """@brief Load camera intrinsics fx and cx from calibration YAML."""
-    with calib_yaml_path.open("r", encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-
-    if "K" not in data:
-        raise ValueError(f"Calibration file {calib_yaml_path} has no 'K' matrix")
-
-    K = np.asarray(data["K"], dtype=float)
-    if K.shape != (3, 3):
-        raise ValueError(f"Expected K shape (3, 3), got {K.shape}")
-
-    return CamIntrinsics(fx=float(K[0, 0]), cx=float(K[0, 2]))
-
-
-def parse_json_dict(raw: str, field_name: str) -> dict[str, Any]:
-    """@brief Parse and validate a JSON object from CLI input."""
-    try:
-        value = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"Invalid JSON for {field_name}: {exc}") from exc
-
-    if not isinstance(value, dict):
-        raise ValueError(f"{field_name} must be a JSON object")
-    return value
-
-
-def configure_logging(log_path: Path) -> None:
-    """@brief Configure console and file logging for a mission run."""
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    handlers = [
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler(log_path, encoding="utf-8"),
-    ]
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s | %(levelname)s | %(message)s",
-        handlers=handlers,
-    )
+def import_yolo() -> None:
+    global YOLO
+    ultralytics_mod = importlib.import_module("ultralytics")
+    YOLO = getattr(ultralytics_mod, "YOLO")
+
+
+def import_picamera_runtime() -> None:
+    global Picamera2, H264Encoder, FfmpegOutput
+    picamera2_mod = importlib.import_module("picamera2")
+    encoders_mod = importlib.import_module("picamera2.encoders")
+    outputs_mod = importlib.import_module("picamera2.outputs")
+    Picamera2 = getattr(picamera2_mod, "Picamera2")
+    H264Encoder = getattr(encoders_mod, "H264Encoder")
+    FfmpegOutput = getattr(outputs_mod, "FfmpegOutput")
 
 
 def create_parser() -> argparse.ArgumentParser:
-    """@brief Create and return the command-line argument parser."""
     parser = argparse.ArgumentParser(
-        description="Start dual-camera recording and write 5Hz object log lines."
+        description="Run mission on Pi cameras or laptop webcam with same script.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  Laptop (selfie cam): python camera/start_boat_mission.py --backend webcam --webcam-left 0 --webcam-right -1 --model camera/yolo_models/duck.pt\n"
+            "  Raspberry Pi (2 cams): python start_boat_mission.py --backend pi --camera-left 0 --camera-right 1 --model duck.pt"
+        ),
+    )
+    parser.add_argument("--backend", choices=("pi", "webcam", "mock"), default="pi")
+    parser.add_argument("--duration", type=float, default=10.0)
+    parser.add_argument("--width", type=int, default=1920)
+    parser.add_argument("--height", type=int, default=1080)
+    parser.add_argument("--fps", type=int, default=5)
+    parser.add_argument("--log-interval", type=float, default=0.2)
+    parser.add_argument("--model", type=str, default="duck.pt")
+    parser.add_argument("--conf", type=float, default=0.5)
+
+    parser.add_argument("--camera-left", type=int, default=0, help="Pi left camera id")
+    parser.add_argument(
+        "--camera-right", type=int, default=1, help="Pi right camera id"
+    )
+
+    parser.add_argument(
+        "--webcam-left", type=int, default=0, help="Laptop webcam left index"
     )
     parser.add_argument(
-        "--duration", type=float, default=60.0, help="Run time in seconds"
+        "--webcam-right",
+        type=int,
+        default=-1,
+        help="Laptop webcam right index; -1 means disabled",
     )
-    parser.add_argument("--camera-left", type=int, default=0, help="Left camera id")
-    parser.add_argument("--camera-right", type=int, default=1, help="Right camera id")
-    parser.add_argument("--width", type=int, default=1920, help="Capture width")
-    parser.add_argument("--height", type=int, default=1080, help="Capture height")
-    parser.add_argument("--fps", type=int, default=5, help="Capture FPS")
-    parser.add_argument(
-        "--out-dir",
-        type=Path,
-        default=SCRIPT_DIR / "recordings",
-        help="Output folder",
-    )
-    parser.add_argument(
-        "--calib-yaml",
-        type=Path,
-        default=SCRIPT_DIR / "calibration_yamls" / "camera_calibration.yaml",
-        help="Calibration YAML path for focal length and optical center",
-    )
-    parser.add_argument(
-        "--log-interval",
-        type=float,
-        default=0.2,
-        help="Detection log interval in seconds (default: 0.2; 5 logs per second)",
-    )
-    parser.add_argument(
-        "--depth-calculation",
-        type=str,
-        choices=("dual-camera", "left-camera", "right-camera", "none"),
-        default="dual-camera",
-        help="Depth estimation strategy.",
-    )
-    parser.add_argument(
-        "--model",
-        type=str,
-        default="yolov8n.pt",
-        help="Ultralytics model path or name",
-    )
-    parser.add_argument(
-        "--conf", type=float, default=0.6, help="Detection confidence threshold"
-    )
-    parser.add_argument(
-        "--class-aliases-json",
-        type=str,
-        default='{"bird": "duck"}',
-        help='JSON map to rename detector labels, e.g. {"bird":"duck"}',
-    )
-    parser.add_argument(
-        "--object-widths-json",
-        type=str,
-        default='{"duck": 0.25, "buoy": 0.30, "person": 0.45}',
-        help="JSON map of real object widths in meters for bbox-width distance estimation",
-    )
-    parser.add_argument(
-        "--stereo-baseline-m",
-        type=float,
-        default=0.06,
-        help="Stereo baseline in meters for dual-camera depth estimation",
-    )
-    parser.add_argument(
-        "--stereo-min-disparity-px",
-        type=float,
-        default=1.0,
-        help="Minimum center disparity in pixels before dual-camera depth is considered valid",
-    )
-    parser.add_argument(
-        "--stereo-max-vertical-gap-px",
-        type=float,
-        default=80.0,
-        help="Maximum vertical center gap in pixels when matching left/right detections",
-    )
-    parser.add_argument(
-        "--mock-no-cameras",
-        action="store_true",
-        help="Run full timing/logging loop without camera hardware; writes placeholder camera data.",
-    )
+
+    parser.add_argument("--out-dir", type=Path, default=SCRIPT_DIR / "recordings")
     return parser
 
 
-def build_camera(camera_id: int, width: int, height: int, fps: int) -> Any:
-    """@brief Create and configure one Picamera2 camera instance."""
+def setup_logging(run_dir: Path) -> None:
+    log_path = run_dir / "mission.log"
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s | %(levelname)s | %(message)s",
+        handlers=[
+            logging.StreamHandler(),
+            logging.FileHandler(log_path, encoding="utf-8"),
+        ],
+    )
+
+
+def build_pi_camera(camera_id: int, width: int, height: int, fps: int) -> Any:
     camera = Picamera2(camera_id)
-    video_cfg = camera.create_video_configuration(
+    config = camera.create_video_configuration(
         main={"size": (width, height), "format": "RGB888"},
         controls={"FrameRate": fps},
     )
-    camera.configure(video_cfg)
+    camera.configure(config)
     return camera
 
 
-def start_recording(camera: Any, output_path: Path, bitrate: int = 8_000_000) -> None:
-    """@brief Start H264 recording for one camera to an MP4 file."""
+def start_pi_recording(
+    camera: Any, output_path: Path, bitrate: int = 8_000_000
+) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     encoder = H264Encoder(bitrate=bitrate)
     output = FfmpegOutput(str(output_path))
     camera.start_recording(encoder, output)
 
 
-def stop_recording(camera: Any) -> None:
-    """@brief Stop recording and safely close a camera, ignoring shutdown errors."""
+def stop_pi_camera(camera: Any) -> None:
     try:
         camera.stop_recording()
     except Exception:
@@ -529,63 +128,173 @@ def stop_recording(camera: Any) -> None:
         pass
 
 
+def build_webcam(index: int, width: int, height: int, fps: int) -> Any:
+    if cv2 is None:
+        raise SystemExit(
+            "OpenCV is required for --backend webcam. Install opencv-python."
+        )
+
+    cam = cv2.VideoCapture(index)
+    if not cam.isOpened():
+        raise SystemExit(f"Could not open webcam index {index}")
+
+    cam.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+    cam.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+    cam.set(cv2.CAP_PROP_FPS, fps)
+    return cam
+
+
+def build_webcam_writer(path: Path, width: int, height: int, fps: int) -> Any:
+    if cv2 is None:
+        raise SystemExit(
+            "OpenCV is required for --backend webcam. Install opencv-python."
+        )
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    for codec in ("mp4v", "avc1", "XVID"):
+        fourcc = cv2.VideoWriter_fourcc(*codec)
+        writer = cv2.VideoWriter(str(path), fourcc, fps, (width, height))
+        if writer.isOpened():
+            logging.info(
+                "Opened writer %s with codec %s (%sx%s @ %sfps)",
+                path,
+                codec,
+                width,
+                height,
+                fps,
+            )
+            return writer
+
+    raise SystemExit(
+        f"Could not open video writer for {path} with codecs mp4v/avc1/XVID"
+    )
+
+
+def detect(
+    frame_bgr: np.ndarray, model: Any, conf: float, camera_name: str
+) -> list[dict[str, Any]]:
+    prediction = model.predict(source=frame_bgr, conf=conf, verbose=False, device="cpu")
+    if not prediction:
+        return []
+
+    result = prediction[0]
+    if result.boxes is None or result.boxes.xyxy is None:
+        return []
+
+    names = result.names
+    xyxy = result.boxes.xyxy.cpu().numpy()
+    confs = result.boxes.conf.cpu().numpy()
+    classes = result.boxes.cls.cpu().numpy().astype(int)
+
+    output: list[dict[str, Any]] = []
+    for bbox, score, cls_id in zip(xyxy, confs, classes):
+        x1, y1, x2, y2 = [float(v) for v in bbox]
+        output.append(
+            {
+                "camera": camera_name,
+                "label": str(names[int(cls_id)]),
+                "confidence": round(float(score), 4),
+                "bbox_xyxy": [round(x1, 2), round(y1, 2), round(x2, 2), round(y2, 2)],
+            }
+        )
+    return output
+
+
 def main() -> int:
-    """@brief Run mission loop: capture, detect, estimate depth, and log results."""
     args = create_parser().parse_args()
-    import_runtime_dependencies(require_cameras=not args.mock_no_cameras)
+
+    import_yolo()
+    if args.backend == "pi":
+        try:
+            import_picamera_runtime()
+        except ImportError as exc:
+            raise SystemExit(
+                "Picamera2 runtime not found. Use --backend webcam on laptop, or install picamera2 on Pi."
+            ) from exc
 
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     run_dir = args.out_dir / stamp
-    app_log_path = run_dir / "mission.log"
-    detections_log_path = run_dir / "detections.jsonl"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    setup_logging(run_dir)
 
-    configure_logging(app_log_path)
+    cam0_dir = run_dir / "camera0_recording"
+    cam1_dir = run_dir / "camera1_recording"
+    cam0_dir.mkdir(parents=True, exist_ok=True)
+    cam1_dir.mkdir(parents=True, exist_ok=True)
 
-    class_aliases = parse_json_dict(args.class_aliases_json, "class aliases")
-    object_widths_raw = parse_json_dict(args.object_widths_json, "object widths")
-    object_widths = {str(k): float(v) for k, v in object_widths_raw.items()}
-    intrinsics = None
-    if args.depth_calculation != "none":
-        intrinsics = load_intrinsics(args.calib_yaml)
-
-    detector = DetectionEngine(
-        model_path=args.model,
-        conf_threshold=args.conf,
-        class_aliases={str(k): str(v) for k, v in class_aliases.items()},
-    )
-    depth_estimator = build_depth_estimator(
-        depth_calculation=args.depth_calculation,
-        intrinsics=intrinsics,
-        object_width_m=object_widths,
-        stereo_baseline_m=args.stereo_baseline_m,
-        stereo_min_disparity_px=args.stereo_min_disparity_px,
-        stereo_max_vertical_gap_px=args.stereo_max_vertical_gap_px,
-    )
-
-    left_video = run_dir / f"camera{args.camera_left}.mp4"
-    right_video = run_dir / f"camera{args.camera_right}.mp4"
+    left_video = cam0_dir / "recording.mp4"
+    right_video = cam1_dir / "recording.mp4"
+    detections_log = run_dir / "detections.jsonl"
 
     logging.info("Run folder: %s", run_dir)
-    logging.info("Left video: %s", left_video)
-    logging.info("Right video: %s", right_video)
-    logging.info("Detections log: %s", detections_log_path)
-    logging.info("Depth calculation: %s", args.depth_calculation)
+    logging.info("Backend: %s", args.backend)
+    logging.info("Model: %s", args.model)
+    logging.info("Resolution/FPS: %sx%s @ %s", args.width, args.height, args.fps)
+    logging.info("Log interval: %s sec", args.log_interval)
+
+    model = YOLO(args.model)
 
     left_cam = None
     right_cam = None
+    left_writer = None
+    right_writer = None
 
-    if not args.mock_no_cameras:
-        left_cam = build_camera(args.camera_left, args.width, args.height, args.fps)
-        right_cam = build_camera(args.camera_right, args.width, args.height, args.fps)
-    else:
-        logging.warning(
-            "Running in --mock-no-cameras mode. No real camera/video input; logs will contain '-' placeholders."
+    left_name = "left"
+    right_name = "right"
+
+    if args.backend == "pi":
+        left_name = f"pi:{args.camera_left}"
+        right_name = f"pi:{args.camera_right}"
+        left_cam = build_pi_camera(args.camera_left, args.width, args.height, args.fps)
+        right_cam = build_pi_camera(
+            args.camera_right, args.width, args.height, args.fps
         )
+
+        left_cam.start()
+        right_cam.start()
+        start_pi_recording(left_cam, left_video)
+        start_pi_recording(right_cam, right_video)
+
+    elif args.backend == "webcam":
+        left_video = cam0_dir / "recording.mp4"
+        right_video = cam1_dir / "recording.mp4"
+
+        left_name = f"webcam:{args.webcam_left}"
+        left_cam = build_webcam(args.webcam_left, args.width, args.height, args.fps)
+        left_writer = None
+
+        logging.info(
+            "Left webcam actual mode: %sx%s @ %sfps",
+            int(left_cam.get(cv2.CAP_PROP_FRAME_WIDTH)),
+            int(left_cam.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+            left_cam.get(cv2.CAP_PROP_FPS),
+        )
+
+        if args.webcam_right >= 0:
+            right_name = f"webcam:{args.webcam_right}"
+            right_cam = build_webcam(
+                args.webcam_right, args.width, args.height, args.fps
+            )
+            right_writer = None
+
+            logging.info(
+                "Right webcam actual mode: %sx%s @ %sfps",
+                int(right_cam.get(cv2.CAP_PROP_FRAME_WIDTH)),
+                int(right_cam.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+                right_cam.get(cv2.CAP_PROP_FPS),
+            )
+        else:
+            logging.info(
+                "No right webcam configured (use --webcam-right N for two webcams)."
+            )
+
+    else:
+        logging.warning("Running in mock mode: no real video input.")
 
     stop_requested = False
 
     def _signal_handler(signum: int, _frame: Any) -> None:
-        """@brief Handle process signals and request graceful loop shutdown."""
         nonlocal stop_requested
         stop_requested = True
         logging.info("Signal %s received, stopping...", signum)
@@ -593,17 +302,10 @@ def main() -> int:
     signal.signal(signal.SIGINT, _signal_handler)
     signal.signal(signal.SIGTERM, _signal_handler)
 
-    if not args.mock_no_cameras and left_cam is not None and right_cam is not None:
-        left_cam.start()
-        right_cam.start()
-        start_recording(left_cam, left_video)
-        start_recording(right_cam, right_video)
-
     start_t = time.monotonic()
     next_log_t = start_t
 
-    run_dir.mkdir(parents=True, exist_ok=True)
-    with detections_log_path.open("a", encoding="utf-8") as det_file:
+    with detections_log.open("a", encoding="utf-8") as log_file:
         try:
             while not stop_requested:
                 now = time.monotonic()
@@ -617,102 +319,85 @@ def main() -> int:
 
                 ts_utc = datetime.utcnow().isoformat(timespec="milliseconds") + "Z"
 
-                if args.mock_no_cameras:
+                if args.backend == "mock":
                     payload = {
                         "timestamp_utc": ts_utc,
                         "elapsed_s": round(elapsed, 3),
-                        "mock_mode": True,
-                        "camera_data": {
-                            str(args.camera_left): "-",
-                            str(args.camera_right): "-",
-                        },
-                        "detections": [
-                            {
-                                "camera": args.camera_left,
-                                "label": "-",
-                                "confidence": "-",
-                                "distance_m": "-",
-                                "axis_offset_m": "-",
-                                "bbox_xyxy": "-",
-                            },
-                            {
-                                "camera": args.camera_right,
-                                "label": "-",
-                                "confidence": "-",
-                                "distance_m": "-",
-                                "axis_offset_m": "-",
-                                "bbox_xyxy": "-",
-                            },
-                        ],
+                        "detections": [],
                     }
                 else:
-                    if left_cam is None or right_cam is None:
-                        raise RuntimeError("Camera objects were not initialized.")
+                    if left_cam is None:
+                        raise RuntimeError("Left camera not initialized.")
 
-                    left_frame = left_cam.capture_array("main")[:, :, ::-1]
-                    right_frame = right_cam.capture_array("main")[:, :, ::-1]
+                    if args.backend == "pi":
+                        left_frame = left_cam.capture_array("main")[:, :, ::-1]
+                    else:
+                        ok_left, left_frame = left_cam.read()
+                        if not ok_left:
+                            logging.warning("Could not read left webcam frame")
+                            next_log_t += args.log_interval
+                            continue
 
-                    left_detections = detector.detect(left_frame)
-                    right_detections = detector.detect(right_frame)
-                    left_detections, right_detections = depth_estimator.annotate(
-                        left_detections,
-                        right_detections,
-                    )
+                        if left_writer is None:
+                            left_h, left_w = left_frame.shape[:2]
+                            left_writer = build_webcam_writer(
+                                left_video, left_w, left_h, args.fps
+                            )
+
+                        if left_writer is not None:
+                            left_writer.write(left_frame)
+
+                    detections = detect(left_frame, model, args.conf, left_name)
+
+                    if right_cam is not None:
+                        if args.backend == "pi":
+                            right_frame = right_cam.capture_array("main")[:, :, ::-1]
+                        else:
+                            ok_right, right_frame = right_cam.read()
+                            if ok_right:
+                                if right_writer is None:
+                                    right_h, right_w = right_frame.shape[:2]
+                                    right_writer = build_webcam_writer(
+                                        right_video, right_w, right_h, args.fps
+                                    )
+
+                                if right_writer is not None:
+                                    right_writer.write(right_frame)
+                            else:
+                                right_frame = None
+                                logging.warning("Could not read right webcam frame")
+
+                        if right_frame is not None:
+                            detections += detect(
+                                right_frame, model, args.conf, right_name
+                            )
 
                     payload = {
                         "timestamp_utc": ts_utc,
                         "elapsed_s": round(elapsed, 3),
-                        "mock_mode": False,  # Set to true to run without cameras connected
-                        "detections": [
-                            {
-                                "camera": args.camera_left,
-                                "label": det.label,
-                                "confidence": round(det.confidence, 2),
-                                "distance_m": (
-                                    None
-                                    if det.distance_m is None
-                                    else round(det.distance_m, 3)
-                                ),
-                                "axis_offset_m": (
-                                    None
-                                    if det.axis_offset_m is None
-                                    else round(det.axis_offset_m, 3)
-                                ),
-                                "bbox_xyxy": [round(v, 2) for v in det.bbox_xyxy],
-                            }
-                            for det in left_detections
-                        ]
-                        + [
-                            {
-                                "camera": args.camera_right,
-                                "label": det.label,
-                                "confidence": round(det.confidence, 4),
-                                "distance_m": (
-                                    None
-                                    if det.distance_m is None
-                                    else round(det.distance_m, 3)
-                                ),
-                                "axis_offset_m": (
-                                    None
-                                    if det.axis_offset_m is None
-                                    else round(det.axis_offset_m, 3)
-                                ),
-                                "bbox_xyxy": [round(v, 2) for v in det.bbox_xyxy],
-                            }
-                            for det in right_detections
-                        ],
+                        "detections": detections,
                     }
 
-                det_file.write(json.dumps(payload) + "\n")
-                det_file.flush()
+                log_file.write(json.dumps(payload) + "\n")
+                log_file.flush()
 
                 next_log_t += args.log_interval
 
         finally:
-            if left_cam is not None:
-                stop_recording(left_cam)
-            if right_cam is not None:
-                stop_recording(right_cam)
+            if args.backend == "pi":
+                if left_cam is not None:
+                    stop_pi_camera(left_cam)
+                if right_cam is not None:
+                    stop_pi_camera(right_cam)
+            elif args.backend == "webcam":
+                if left_cam is not None:
+                    left_cam.release()
+                if right_cam is not None:
+                    right_cam.release()
+                if left_writer is not None:
+                    left_writer.release()
+                if right_writer is not None:
+                    right_writer.release()
 
     logging.info("Finished run.")
     return 0
