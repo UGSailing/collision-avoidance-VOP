@@ -450,7 +450,7 @@ def run_picamera_mode(args: argparse.Namespace, model, calib: CalibrationData) -
 
     try:
         while True:
-            frame = camera.capture_array()
+            frame = cv2.cvtColor(camera.capture_array(), cv2.COLOR_RGB2BGR)
             frame_count += 1
             estimates = iter_estimates(
                 model=model,
@@ -478,7 +478,7 @@ def run_picamera_mode(args: argparse.Namespace, model, calib: CalibrationData) -
                     2,
                     cv2.LINE_AA,
                 )
-                cv2.imshow(DISPLAY_WINDOW, cv2.cvtColor(vis, cv2.COLOR_RGB2BGR))
+                cv2.imshow(DISPLAY_WINDOW, vis)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
                     break
             elif frame_count % args.log_every == 0:
