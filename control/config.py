@@ -34,15 +34,15 @@ GEOFENCE_POND_ZWIJNAARDE = [      # basic geofencing test boundaries
 ]
 
 EXCLUSION_ZONES = [
-    # Zone 1: Het vierkant, nu precies in het midden tussen de vorige twee locaties
+    # Zone 1 vierkant
     [
         (51.01145, 3.70890), # Top Left
         (51.01145, 3.70900), # Top Right
         (51.01140, 3.70900), # Bottom Right
         (51.01140, 3.70890)  # Bottom Left
-    ], # <--- Belangrijk: De komma hier scheidt Zone 1 van Zone 2
+    ],
 
-    # Zone 2: De driehoek (onaangepast)
+    # Zone 2: De driehoek
     [
         (51.0115, 3.7091), (51.0114, 3.7092), (51.0115, 3.7093)
     ]
