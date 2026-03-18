@@ -73,12 +73,12 @@ def main():
         "--duration", type=int, default=60, help="Duration in seconds (default: 10)"
     )
     parser.add_argument(
-        "--w", type=int, default=1280, help="Frame width (default: 1280)"
+        "--w", type=int, default=1920, help="Frame width (default: 1920)"
     )
     parser.add_argument(
-        "--h", type=int, default=720, help="Frame height (default: 720)"
+        "--h", type=int, default=1080, help="Frame height (default: 1080)"
     )
-    parser.add_argument("--fps", type=int, default=30, help="Frame rate (default: 30)")
+    parser.add_argument("--fps", type=int, default=5, help="Frame rate (default: 5)")
     parser.add_argument(
         "--shutter-us",
         type=int,

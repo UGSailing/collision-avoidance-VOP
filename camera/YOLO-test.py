@@ -11,3 +11,4 @@ results = model("images/img_006.jpg")
 for result in results:
     result.show()  # Toon afbeelding
     result.save(filename="resultaat.jpg")  # Sla resultaat op
+
