@@ -8,4 +8,4 @@ __pycache__/
 /camera/output.mp4
 /camera/calib_cam0.yaml
 /camera/images_to_test_models
-/camera/recordings
+/camera/recordings/on_boat_recordings
