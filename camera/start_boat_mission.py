@@ -6,7 +6,7 @@ Expected Raspberry Pi runtime stack:
 - Optional Ultralytics YOLO for object detection.
 
 The script records both camera perspectives and writes a JSONL log entry every
-log interval (default 0.1s) with the current detections and estimated distance
+log interval (default 0.2s) with the current detections and estimated distance
 metrics.
 """
 
@@ -412,16 +412,16 @@ def configure_logging(log_path: Path) -> None:
 def create_parser() -> argparse.ArgumentParser:
     """@brief Create and return the command-line argument parser."""
     parser = argparse.ArgumentParser(
-        description="Start dual-camera recording and write 10Hz object log lines."
+        description="Start dual-camera recording and write 5Hz object log lines."
     )
     parser.add_argument(
         "--duration", type=float, default=60.0, help="Run time in seconds"
     )
     parser.add_argument("--camera-left", type=int, default=0, help="Left camera id")
     parser.add_argument("--camera-right", type=int, default=1, help="Right camera id")
-    parser.add_argument("--width", type=int, default=1280, help="Capture width")
-    parser.add_argument("--height", type=int, default=720, help="Capture height")
-    parser.add_argument("--fps", type=int, default=30, help="Capture FPS")
+    parser.add_argument("--width", type=int, default=1920, help="Capture width")
+    parser.add_argument("--height", type=int, default=1080, help="Capture height")
+    parser.add_argument("--fps", type=int, default=5, help="Capture FPS")
     parser.add_argument(
         "--out-dir",
         type=Path,
@@ -437,15 +437,15 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--log-interval",
         type=float,
-        default=0.1,
-        help="Detection log interval in seconds (default: 0.1)",
+        default=0.2,
+        help="Detection log interval in seconds (default: 0.2; 5 logs per second)",
     )
     parser.add_argument(
         "--depth-calculation",
         type=str,
-        choices=("dual-camera", "bbox-width", "none"),
+        choices=("dual-camera", "left-camera", "right-camera", "none"),
         default="dual-camera",
-        help="Depth estimation strategy. Keep this switchable so a future single-camera estimator can be added cleanly.",
+        help="Depth estimation strategy.",
     )
     parser.add_argument(
         "--model",
@@ -454,7 +454,7 @@ def create_parser() -> argparse.ArgumentParser:
         help="Ultralytics model path or name",
     )
     parser.add_argument(
-        "--conf", type=float, default=0.25, help="Detection confidence threshold"
+        "--conf", type=float, default=0.6, help="Detection confidence threshold"
     )
     parser.add_argument(
         "--class-aliases-json",
@@ -667,7 +667,7 @@ def main() -> int:
                             {
                                 "camera": args.camera_left,
                                 "label": det.label,
-                                "confidence": round(det.confidence, 4),
+                                "confidence": round(det.confidence, 2),
                                 "distance_m": (
                                     None
                                     if det.distance_m is None
