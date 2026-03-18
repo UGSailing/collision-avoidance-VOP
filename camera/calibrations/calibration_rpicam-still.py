@@ -10,6 +10,8 @@ import cv2
 import subprocess
 import time
 
+# python3 calibrations/calibration_rpicam-still.py --camera 0 --cols 8 --rows 6 --square 0.0285 --w 1920 --h 1080  
+
 
 def start_preview(camera_id: int, width: int, height: int):
     # -t 0 = oneindig

@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
 """Estimate badeend distance and azimuth from a single camera using duck.pt."""
+# rpi camera:
+#python python distance_azimuth_badeend.py --picamera --object-height 0.13
+#webcam:
+# python .\collision-avoidance-VOP\camera\distance_azimuth_badeend.py --webcam --object-height 0.10
+# single image:
+# python .\collision-avoidance-VOP\camera\distance_azimuth_badeend.py --image ".\SailToDuck\1.training\Rubber Duck Detection.v1i.yolov8\train\images\image_10_jpg.rf.8e5cd11b4e1ed5c9f685fb4fe9aa65b8.jpg" --object-height 0.10
+
 
 from __future__ import annotations
 
