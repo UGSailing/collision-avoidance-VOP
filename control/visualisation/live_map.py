@@ -116,6 +116,28 @@ def update_map(n):
             hoverinfo="skip",
             name="geofence"
         ))
+
+    # --- 2. ADD EXCLUSION ZONES (KEEP-OUT) ---
+    if hasattr(config, 'EXCLUSION_ZONES') and config.EXCLUSION_ZONES:
+        for i, zone in enumerate(config.EXCLUSION_ZONES):
+            # Extract Lat/Lon for this specific exclusion polygon
+            ex_lats = [pt[0] for pt in zone]
+            ex_lons = [pt[1] for pt in zone]
+            
+            # Close the polygon
+            ex_lats.append(ex_lats[0])
+            ex_lons.append(ex_lons[0])
+
+            fig.add_trace(go.Scattermap(
+                lat=ex_lats,
+                lon=ex_lons,
+                mode="lines",
+                fill="toself", 
+                fillcolor="rgba(255, 0, 0, 0.3)", # Reddish for danger zones
+                line=dict(width=2, color="red"),
+                hoverinfo="all",
+                name=f"Exclusion Zone {i+1}"
+            ))
     # --------------------------------
         
 

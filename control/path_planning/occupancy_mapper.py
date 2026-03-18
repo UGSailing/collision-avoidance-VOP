@@ -136,37 +136,81 @@ class OccupancyMapper:
     #         j = i
     #     return is_inside
 
-    def _apply_geofence(self):
-        """Sets all grid cells outside the geofence to 1 (obstacle)."""
-        if not hasattr(config, 'GEOFENCE_GPS') or not config.GEOFENCE_GPS:
-            return
+    # def _apply_geofence(self):
+    #     """Sets all grid cells outside the geofence to 1 (obstacle)."""
+    #     if not hasattr(config, 'GEOFENCE_GPS') or not config.GEOFENCE_GPS:
+    #         return
 
-        # 1. Convert GPS geofence corners to local grid indices
-        poly_grid = []
-        center = self.size_cells // 2
-        for lat, lon in config.GEOFENCE_GPS:
-            x_m, y_m = self._gps_to_local(lat, lon)
-            gx = int(x_m / self.res) + center
-            gy = int(y_m / self.res) + center
-            poly_grid.append((gx, gy))
+    #     # 1. Convert GPS geofence corners to local grid indices
+    #     poly_grid = []
+    #     center = self.size_cells // 2
+    #     for lat, lon in config.GEOFENCE_GPS:
+    #         x_m, y_m = self._gps_to_local(lat, lon)
+    #         gx = int(x_m / self.res) + center
+    #         gy = int(y_m / self.res) + center
+    #         poly_grid.append((gx, gy))
 
-        # 2. Iterate through the grid and mask out the boundary
-        # Note: If this nested loop is too slow (e.g., Grid is 1000x1000), 
-        # we can optimize this later using skimage.draw.polygon or matplotlib.path
-        # 2. Create a coordinate grid (vectorized)
-        # This creates a fast mathematical mesh of every X/Y coordinate in your array
-        x, y = np.meshgrid(np.arange(self.size_cells), np.arange(self.size_cells))
-        x, y = x.flatten(), y.flatten()
-        points = np.vstack((x,y)).T
+    #     # 2. Iterate through the grid and mask out the boundary
+    #     # Note: If this nested loop is too slow (e.g., Grid is 1000x1000), 
+    #     # we can optimize this later using skimage.draw.polygon or matplotlib.path
+    #     # 2. Create a coordinate grid (vectorized)
+    #     # This creates a fast mathematical mesh of every X/Y coordinate in your array
+    #     x, y = np.meshgrid(np.arange(self.size_cells), np.arange(self.size_cells))
+    #     x, y = x.flatten(), y.flatten()
+    #     points = np.vstack((x,y)).T
 
-        # 3. Fast C-level ray-casting using matplotlib
-        geofence_path = Path(poly_grid)
+    #     # 3. Fast C-level ray-casting using matplotlib
+    #     geofence_path = Path(poly_grid)
         
-        # Returns a boolean array of what is INSIDE the geofence
-        inside_mask = geofence_path.contains_points(points).reshape(self.size_cells, self.size_cells)
+    #     # Returns a boolean array of what is INSIDE the geofence
+    #     inside_mask = geofence_path.contains_points(points).reshape(self.size_cells, self.size_cells)
 
-        # 4. Mask the grid: Any cell NOT inside (~), set to 1.0 (obstacle)
-        self.grid[~inside_mask] = 1.0
+    #     # 4. Mask the grid: Any cell NOT inside (~), set to 1.0 (obstacle)
+    #     self.grid[~inside_mask] = 1.0 
+
+
+    def _apply_geofence(self):
+        """
+        Sets all grid cells outside the geofence OR inside exclusion zones 
+        to 1.0 (blocked).
+        """
+        # Create a coordinate mesh for the entire grid
+        x, y = np.meshgrid(np.arange(self.size_cells), np.arange(self.size_cells))
+        points = np.vstack((x.flatten(), y.flatten())).T
+        center = self.size_cells // 2
+
+        # --- 1. HANDLE OUTER BOUNDARY (KEEP-IN) ---
+        if hasattr(config, 'GEOFENCE_GPS') and config.GEOFENCE_GPS:
+            poly_grid = []
+            for lat, lon in config.GEOFENCE_GPS:
+                x_m, y_m = self._gps_to_local(lat, lon)
+                gx = int(x_m / self.res) + center
+                gy = int(y_m / self.res) + center
+                poly_grid.append((gx, gy))
+
+            geofence_path = Path(poly_grid)
+            # Mask: True if INSIDE the safe zone
+            inside_main_mask = geofence_path.contains_points(points).reshape(self.size_cells, self.size_cells)
+            
+            # Block everything NOT inside the main fence
+            self.grid[~inside_main_mask] = 1.0
+
+        # --- 2. HANDLE EXCLUSION ZONES (KEEP-OUT) ---
+        if hasattr(config, 'EXCLUSION_ZONES') and config.EXCLUSION_ZONES:
+            for zone in config.EXCLUSION_ZONES:
+                zone_poly_grid = []
+                for lat, lon in zone:
+                    x_m, y_m = self._gps_to_local(lat, lon)
+                    gx = int(x_m / self.res) + center
+                    gy = int(y_m / self.res) + center
+                    zone_poly_grid.append((gx, gy))
+                
+                exclusion_path = Path(zone_poly_grid)
+                # Mask: True if INSIDE the forbidden zone
+                inside_exclusion_mask = exclusion_path.contains_points(points).reshape(self.size_cells, self.size_cells)
+                
+                # Block everything INSIDE this exclusion zone
+                self.grid[inside_exclusion_mask] = 1.0
 
 
 #TEST GEOFENCING EINDE  
