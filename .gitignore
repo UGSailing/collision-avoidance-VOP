@@ -7,3 +7,4 @@ __pycache__/
 /camera/calib_cam0_imgs
 /camera/output.mp4
 /camera/calib_cam0.yaml
+/camera/images_to_test_models
