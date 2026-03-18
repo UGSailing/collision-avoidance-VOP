@@ -88,7 +88,7 @@ if __name__ == "__main__":
     map_process = None
     try:
         while True:
-            resp = input("type 'map' to launch map or 'exit' to exit\n").strip().lower()
+            resp = input("Type 'map', 'exit', or 'destination <lat> <lon>'\n").strip().lower()
             if resp == "exit":
                 break
             elif resp == "map":
@@ -111,6 +111,34 @@ if __name__ == "__main__":
                     map_process = subprocess.Popen([str(python_exe), str(script), str(run_dir)])
                 else:
                     print("Map is already running.")
+            elif resp.startswith("destination"):
+                try:
+                    # Split the string and extract the numbers
+                    parts = resp.split()
+                    new_lat = float(parts[1])
+                    new_lon = float(parts[2])
+
+                    # Read current points, update the destination row, and save back
+                    df = pd.read_csv(points_file)
+                    
+                    if 'destination' in df['category'].values:
+                        df.loc[df['category'] == 'destination', ['latitude', 'longitude']] = [new_lat, new_lon]
+                    else:
+                        # Fallback if destination row didn't exist yet
+                        new_row = pd.DataFrame([{
+                            'id': 0, 'category': 'destination', 
+                            'latitude': new_lat, 'longitude': new_lon, 'heading': 0.0
+                        }])
+                        df = pd.concat([df, new_row], ignore_index=True)
+                    
+                    df.to_csv(points_file, index=False)
+                    print(f"Destination updated to: {new_lat}, {new_lon}")
+                    
+                except (IndexError, ValueError):
+                    print("Invalid format. Use: -destination 51.011 3.708")
+                except Exception as e:
+                    print(f"Error updating destination: {e}")
+            # -----------------------------
             else:
                 print("Invalid input.")
     except KeyboardInterrupt:

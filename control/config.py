@@ -1,8 +1,8 @@
 # path planning parameters
 PATH_UPDATE_INTERVAL = 0.5 # seconds
 GRID_RESOLUTION = 0.2 # meters per grid cell
-GRID_SIZE = 100 # meters
-HITBOX_RADIUS = 3 # meters around each obstacle point
+GRID_SIZE = 200 # meters
+HITBOX_RADIUS = 1 # meters around each obstacle point
 SMOOTHING_TOLERANCE = 0.1  # for path waypoint number reduction
 METERS_PER_DEGREE_LAT = 111320  # approximate meters per degree latitude
 
@@ -41,7 +41,7 @@ GEOFENCE_POND_ZWIJNAARDE = [      # basic geofencing test boundaries
     (51.011379, 3.709218), # Top Right
     (51.0112, 3.7095), # Bottom Right
     (51.0112, 3.7085),  # Bottom Left
-    (51.0114, 3.7080)  # testpoint
+    (51.0114, 3.7075)  # testpoint
 ]
 
 EXCLUSION_ZONES = [
