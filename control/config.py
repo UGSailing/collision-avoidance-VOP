@@ -7,6 +7,8 @@ SMOOTHING_TOLERANCE = 0.1  # for path waypoint number reduction
 METERS_PER_DEGREE_LAT = 111320  # approximate meters per degree latitude
 
 # path execution parameters
+TARGET_RPM = 60  # TODO TEMP
+TURNS_PER_SEC = TARGET_RPM / 60.0 # TODO TEMP
 CENTER_RUDDER_RAW = 2048  # Assuming 2048 is straight ahead on the 0-4095 scale
 MAX_RUDDER_TURN = 500     # Maximum raw units the rudder is allowed to turn left/right
 P_GAIN = 5.0              # Proportional gain: How aggressively the boat steers towards the path
