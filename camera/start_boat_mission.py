@@ -21,11 +21,11 @@ from camera.depth_calculation.single_camera_depth_calculation import (
 
 
 """
-python camera/start_boat_mission.py --backend webcam --webcam-left 0 --webcam-right -1 --model duck.pt --single-camera-depth --object-height-m 0.13 --calib-yaml camera/calibration_yamls/camera_calibration.yaml
+python camera/start_boat_mission.py --backend webcam --webcam-left 0 --webcam-right -1 --model duck.pt --single-camera-depth --object-height-m 0.175 --calib-yaml camera/calibration_yamls/camera_calibration.yaml
 """
 
 """
-python start_boat_mission.py --backend pi --camera-left 0 --camera-right 1 --model duck.pt --single-camera-depth --object-height-m 0.13 --calib-yaml camera/calibration_yamls/camera_calibration.yaml
+python camera/start_boat_mission.py --backend pi --camera-left 0 --camera-right 1 --model duck.pt --single-camera-depth --object-height-m 0.175 --calib-yaml camera/calibration_yamls/camera_calibration.yaml
 """
 
 try:
