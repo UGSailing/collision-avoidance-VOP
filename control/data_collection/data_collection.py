@@ -206,7 +206,7 @@ class DataCollector:
         tasks = [
             asyncio.create_task(self._can_listener()),
             asyncio.create_task(self._gps_listener()),
-            asyncio.create_task(ntrip_client.run_ntrip_client(self.rtcm_queue, get_gga)),
+            # asyncio.create_task(ntrip_client.run_ntrip_client(self.rtcm_queue, get_gga)),
         ]
         
         try:
