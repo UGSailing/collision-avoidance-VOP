@@ -97,7 +97,7 @@ def update_map(n):
 
 
     # --- ADD THIS GEOFENCE TRACE ---
-    if hasattr(config, 'GEOFENCE_GPS') and config.GEOFENCE_POND_ZWIJNAARDE:
+    if hasattr(config, 'GEOFENCE_POND_ZWIJNAARDE') and config.GEOFENCE_POND_ZWIJNAARDE:
         # Extract Lat/Lon lists
         geo_lats = [pt[0] for pt in config.GEOFENCE_POND_ZWIJNAARDE]
         geo_lons = [pt[1] for pt in config.GEOFENCE_POND_ZWIJNAARDE]
