@@ -1,11 +1,21 @@
 .env
+env.py
 
 __pycache__/
 *.py[cod]
 *$py.class
+
 /camera/.venv
 /camera/calib_cam0_imgs
 /camera/output.mp4
 /camera/calib_cam0.yaml
 /camera/images_to_test_models
 /camera/recordings/on_boat_recordings
+
+vop-ugs/
+.venv/
+
+.vscode/
+.idea/
+
+runs/

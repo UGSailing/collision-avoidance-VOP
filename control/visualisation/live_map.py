@@ -1,9 +1,22 @@
+import argparse
+import logging
+import os
 import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import config
+
+# parse arguments
+parser = argparse.ArgumentParser()
+parser.add_argument('folder', type=str, help='Folder where points.csv and path.csv are stored')
+args = parser.parse_args()
+DATA_FOLDER = args.folder
 
 # init
 app = dash.Dash(__name__)
@@ -43,7 +56,7 @@ app.layout = html.Div([
     # the interval component triggers a function call automatically
     dcc.Interval(
         id='interval-updater',
-        interval=2000, 
+        interval=500, 
         n_intervals=0
     )
 ])
@@ -56,8 +69,8 @@ app.layout = html.Div([
 def update_map(n):
     # load CSVs
     try:
-        df = pd.read_csv('mapping/points.csv')
-        path_df = pd.read_csv('mapping/path.csv')
+        df = pd.read_csv(os.path.join(DATA_FOLDER, 'points.csv'))
+        path_df = pd.read_csv(os.path.join(DATA_FOLDER, 'path.csv'))
     except Exception as _:
         # failsafe in case the CSVs are currently being written to by another process
         return dash.no_update
@@ -81,6 +94,51 @@ def update_map(n):
             hoverinfo="skip",
             name="path"
         ))
+
+
+    # --- ADD THIS GEOFENCE TRACE ---
+    if hasattr(config, 'GEOFENCE_POND_ZWIJNAARDE') and config.GEOFENCE_POND_ZWIJNAARDE:
+        # Extract Lat/Lon lists
+        geo_lats = [pt[0] for pt in config.GEOFENCE_POND_ZWIJNAARDE]
+        geo_lons = [pt[1] for pt in config.GEOFENCE_POND_ZWIJNAARDE]
+        
+        # Close the polygon by adding the first point to the end
+        geo_lats.append(geo_lats[0])
+        geo_lons.append(geo_lons[0])
+
+        fig.add_trace(go.Scattermap(
+            lat=geo_lats,
+            lon=geo_lons,
+            mode="lines",
+            fill="toself", 
+            fillcolor="rgba(0, 0, 255, 0.15)", 
+            line=dict(width=3, color="blue"), # <--- FIXED
+            hoverinfo="skip",
+            name="geofence"
+        ))
+
+    # --- 2. ADD EXCLUSION ZONES (KEEP-OUT) ---
+    if hasattr(config, 'EXCLUSION_ZONES') and config.EXCLUSION_ZONES:
+        for i, zone in enumerate(config.EXCLUSION_ZONES):
+            # Extract Lat/Lon for this specific exclusion polygon
+            ex_lats = [pt[0] for pt in zone]
+            ex_lons = [pt[1] for pt in zone]
+            
+            # Close the polygon
+            ex_lats.append(ex_lats[0])
+            ex_lons.append(ex_lons[0])
+
+            fig.add_trace(go.Scattermap(
+                lat=ex_lats,
+                lon=ex_lons,
+                mode="lines",
+                fill="toself", 
+                fillcolor="rgba(255, 0, 0, 0.3)", # Reddish for danger zones
+                line=dict(width=2, color="red"),
+                hoverinfo="all",
+                name=f"Exclusion Zone {i+1}"
+            ))
+    # --------------------------------
         
 
     fig.update_layout(
@@ -99,5 +157,5 @@ def update_map(n):
     return fig
 
 if __name__ == '__main__':
-    # debug=True allows for hot-reloading if you change the Python code
-    app.run(debug=True)
+    logging.getLogger('werkzeug').setLevel(logging.CRITICAL) # only log critical errors to avoid cluttering the console
+    app.run(debug=False) # debug=True allows for hot-reloading if you change the Python code

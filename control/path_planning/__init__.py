@@ -1,1 +1,2 @@
-from .v1 import get_path_points
+from .v2 import update_path
+from .occupancy_mapper import OccupancyMapper

@@ -1,3 +1,11 @@
 dash
 pandas
 plotly
+matplotlib
+numpy
+scipy
+python-can
+pyserial
+pyserial-asyncio
+pynmea2
+odrive

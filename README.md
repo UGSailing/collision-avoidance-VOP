@@ -43,3 +43,7 @@ notes:
   ```bash
   --object-widths-json "{\"duck\":0.25,\"buoy\":0.30}"
   ```
+- create `env.py` and fill in credentials
+  ````python
+  NTRIP_USER = "username"
+  NTRIP_PASSWORD = "password"
