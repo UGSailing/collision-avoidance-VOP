@@ -1,0 +1,21 @@
+2026-03-18 16:42:52,198 | INFO | Run folder: /home/mario/Documents/collision-avoidance-VOP/camera/recordings/20260318_164252
+2026-03-18 16:42:52,198 | INFO | Backend: pi
+2026-03-18 16:42:52,198 | INFO | Model: camera/yolo_models/duck.pt
+2026-03-18 16:42:52,198 | INFO | Resolution/FPS: 1920x1080 @ 5
+2026-03-18 16:42:52,198 | INFO | Log interval: 0.2 sec
+2026-03-18 16:42:52,293 | INFO | Single-camera depth enabled with intrinsics from camera/calibration_yamls/camera_calibration.yaml | fx=2018.314 fy=2009.564 cx=955.903 cy=484.226
+2026-03-18 16:42:52,338 | INFO | Initialization successful.
+2026-03-18 16:42:52,338 | INFO | Camera now open.
+2026-03-18 16:42:52,341 | INFO | Camera configuration has been adjusted!
+2026-03-18 16:42:52,342 | INFO | Configuration successful!
+2026-03-18 16:42:52,360 | INFO | Initialization successful.
+2026-03-18 16:42:52,361 | INFO | Camera now open.
+2026-03-18 16:42:52,364 | INFO | Camera configuration has been adjusted!
+2026-03-18 16:42:52,367 | INFO | Configuration successful!
+2026-03-18 16:42:52,393 | INFO | Camera started
+2026-03-18 16:42:52,914 | INFO | Camera started
+2026-03-18 16:43:03,787 | INFO | Camera stopped
+2026-03-18 16:43:05,133 | INFO | Camera closed successfully.
+2026-03-18 16:43:05,140 | INFO | Camera stopped
+2026-03-18 16:43:06,621 | INFO | Camera closed successfully.
+2026-03-18 16:43:06,621 | INFO | Finished run.
