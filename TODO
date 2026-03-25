@@ -7,22 +7,45 @@
 - poster
 
 ## Camera & detection
-- ?
+
+### detection
+
+- Pretrained YOLO model online vinden om boeien te herkennen
+
+#### Resources
+
+https://www.electronicsforu.com/electronics-projects/object-recognition-distance-measurement-using-raspberry-pi
+
+### Camera-afstand
+- Kalibratie mbv schaakbord
+- Objectherkenning gebruiken voor detectie boei
+- Afstandsmeting op basis van stereo camera's
+
+#### Resources
+
+Camera Calibration using OpenCV (YouTube): https://www.youtube.com/watch?v=EWqqseIjVqM
+OpenCV documentation: https://docs.opencv.org/4.x/dc/dbb/tutorial_py_calibration.html
+
+### Voor nu
+cameras-distance-test2.py eens testen en vandaaruit code opbouwen
+
+### Packages installeren
+Installeer de packages in requirements.txt in de gewenste venv.
+Voor picamera moet aparte installatie met bv. "sudo apt install python3-picamera2" gebeuren i.p.v. met pip.
 
 ## Control
 ### general
-- geofencing -> done? simple implementation
-- set a new destination with command in ```main.py``` -> done?
-
+- /
 ### data collection
 - read in CAN & gps messages and put coords into csv
   - test with GPS
   - test with CAN
-- other ways to store 
+- other ways to store objects
 
 ### path planning
 - granular occupancy map (with different strengths depending on object type?)
 - better path algorithm -> by UGS
 
 ### path following
-- ?
+- connect to motors
+- better path execution

@@ -16,6 +16,7 @@ from typing import Any
 import numpy as np
 import yaml
 
+import can_comms
 from depth_calculation.single_camera_depth_calculation import (
     distance_and_angle_from_bbox,
 )
@@ -348,6 +349,8 @@ def main() -> int:
     left_name = "left"
     right_name = "right"
 
+    can = can_comms.CANComms()
+
     if args.backend == "pi":
         left_name = f"pi:{args.camera_left}"
         right_name = f"pi:{args.camera_right}"
@@ -517,9 +520,13 @@ def main() -> int:
                 log_file.write(json.dumps(payload) + "\n")
                 log_file.flush()
 
+                can.send_objects(payload)
+
                 next_log_t += args.log_interval
 
         finally:
+            can.close()
+
             if args.backend == "pi":
                 if left_cam is not None:
                     stop_pi_camera(left_cam)
