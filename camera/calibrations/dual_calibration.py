@@ -84,12 +84,20 @@ ret_stereo, K1, dist1, K2, dist2, R, T, E, F = cv2.stereoCalibrate(
 )
 
 # === RECTIFICATIE ===
+
+# R1,R2 are rectification rotations
+# P1, P2 are the new matrices (instead of K1 and K2)
+# Q handy for 3D reprojection
+# roi: regions of interest in the rectified images
 R1, R2, P1, P2, Q, roi1, roi2 = cv2.stereoRectify(K1, dist1, K2, dist2, img_size, R, T)
 
+# Gives which pixels to read from the original left and right images
+# Applies undistortion + rectification
+# 6th argument: datatype of the maps
 map1x, map1y = cv2.initUndistortRectifyMap(K1, dist1, R1, P1, img_size, cv2.CV_32FC1)
 map2x, map2y = cv2.initUndistortRectifyMap(K2, dist2, R2, P2, img_size, cv2.CV_32FC1)
 
-# === OPSLAAN ===
+# === SAVE ===
 np.savez(
     "stereo_calib.npz",
     K1=K1,
