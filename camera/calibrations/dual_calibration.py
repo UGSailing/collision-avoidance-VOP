@@ -99,7 +99,7 @@ map2x, map2y = cv2.initUndistortRectifyMap(K2, dist2, R2, P2, img_size, cv2.CV_3
 
 # === SAVE ===
 np.savez(
-    "stereo_calib.npz",
+    "calibration_npz/stereo_calib.npz",
     K1=K1,
     dist1=dist1,
     K2=K2,
