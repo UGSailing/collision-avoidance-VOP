@@ -29,10 +29,10 @@ import yaml
 from gi.repository import Gst
 
 import hailo
-from hailo_apps_infra.hailo_rpi_common import app_callback_class
-from hailo_apps_infra.detection_pipeline import GStreamerDetectionApp
+from hailo_apps.hailo_apps_infra.hailo_rpi_common import app_callback_class
+from hailo_apps.hailo_apps_infra.detection_pipeline import GStreamerDetectionApp
 
-import can_comms
+#import can_comms
 from depth_calculation.single_camera_depth_calculation import (
     distance_and_angle_from_bbox,
 )
