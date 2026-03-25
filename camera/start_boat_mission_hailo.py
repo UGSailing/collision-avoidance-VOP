@@ -2,40 +2,20 @@
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
-from datetime import datetime
-from typing import Any
 
-import numpy as np
-import yaml
-
-from gi.repository import Gst
-
-import hailo
-from hailo_apps_infra.hailo_rpi_common import app_callback_class
-from hailo_apps_infra.detection_pipeline import GStreamerDetectionApp
-
-import can_comms
-from depth_calculation.single_camera_depth_calculation import (
-    distance_and_angle_from_bbox,
-)
-
-
-"""
-python camera/start_boat_mission.py --backend webcam --webcam-left 0 --webcam-right -1 --model camera/yolo_models/duck.pt --single-camera-depth --object-height-m 0.175 --calib-yaml camera/calibration_yamls/camera_calibration.yaml
-"""
-
-"""
-python camera/start_boat_mission.py --backend pi --camera-left 0 --camera-right 1 --model camera/yolo_models/duck.pt --single-camera-depth --object-height-m 0.175 --calib-yaml camera/calibration_yamls/camera_calibration.yaml
-"""
-
+# python3 camera/start_boat_mission.py --hailo-apps-root ~/Documents/hailo-apps --network yolov8n --input rpi --save-output --camera-resolution fhd --frame-rate 5
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
 
-# python camera/start_boat_mission.py --hailo-apps-root ./Documents/hailo-apps --network yolov8n --input rpi --save-output --camera-resolution fhd --frame-rate 5
+# Zorg dat je eigen projectimports blijven werken, ongeacht van waar je runt
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 
 def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -63,7 +43,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--save-output",
         action="store_true",
-        help="Save annotated output video/images",
+        help="Save annotated output",
     )
     parser.add_argument(
         "--output-dir",
@@ -95,8 +75,7 @@ def create_parser() -> argparse.ArgumentParser:
         help="Camera resolution preset for Hailo app",
     )
 
-    # Kept only so your CLI stays familiar.
-    # These do NOT affect the official Hailo app yet.
+    # Alleen behouden zodat je CLI compatibel blijft
     parser.add_argument(
         "--single-camera-depth",
         action="store_true",
@@ -121,7 +100,7 @@ def create_parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = create_parser().parse_args()
 
-    hailo_root = args.hailo_apps_root.resolve()
+    hailo_root = args.hailo_apps_root.expanduser().resolve()
     app_path = (
         hailo_root
         / "hailo_apps"
@@ -140,6 +119,19 @@ def main() -> int:
         return 1
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Python env voor subprocess opbouwen
+    env = os.environ.copy()
+
+    # Zodat imports vanuit hailo-apps werken, ook als repo ergens anders staat
+    existing_pythonpath = env.get("PYTHONPATH", "")
+    extra_paths = [
+        str(hailo_root),
+        str(PROJECT_ROOT),
+    ]
+    env["PYTHONPATH"] = os.pathsep.join(
+        extra_paths + ([existing_pythonpath] if existing_pythonpath else [])
+    )
 
     cmd: list[str] = [
         sys.executable,
@@ -171,8 +163,13 @@ def main() -> int:
 
     print("Running:")
     print(" ".join(cmd))
+    print(f"Using hailo-apps root: {hailo_root}")
 
-    completed = subprocess.run(cmd, cwd=str(hailo_root))
+    completed = subprocess.run(
+        cmd,
+        cwd=str(hailo_root),
+        env=env,
+    )
     return int(completed.returncode)
 
 
