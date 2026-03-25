@@ -7,7 +7,31 @@ import subprocess
 import sys
 from pathlib import Path
 
-# python3 camera/start_boat_mission.py --hailo-apps-root ~/Documents/hailo-apps --network yolov8n --input rpi --save-output --camera-resolution fhd --frame-rate 5
+# (venv_hailo_apps) mario@mario:~/Documents/collision-avoidance-VOP $ python3 camera/start_boat_mission_hailo.py --hailo-apps-root ~/Documents/hailo-apps --networ
+k yolov8n --input rpi --save-output --camera-resolution fhd --frame-rate 5
+Running:
+/home/mario/Documents/hailo-apps/venv_hailo_apps/bin/python3 /home/mario/Documents/hailo-apps/hailo_apps/python/standalone_apps/object_detection/object_detection.py -n yolov8n -i rpi -o /home/mario/Documents/collision-avoidance-VOP/hailo_output --output-resolution 1920 1080 --camera-resolution fhd --save-output -f 5
+Using hailo-apps root: /home/mario/Documents/hailo-apps
+INFO | common.core | Found HEF in resources: /usr/local/hailo/resources/models/hailo8l/yolov8n.hef
+Traceback (most recent call last):
+  File "/home/mario/Documents/hailo-apps/hailo_apps/python/standalone_apps/object_detection/object_detection.py", line 286, in <module>
+    main()
+    ~~~~^^
+  File "/home/mario/Documents/hailo-apps/hailo_apps/python/standalone_apps/object_detection/object_detection.py", line 269, in main
+    run_inference_pipeline(
+    ~~~~~~~~~~~~~~~~~~~~~~^
+        args.hef_path,
+        ^^^^^^^^^^^^^^
+    ...<10 lines>...
+        args.draw_trail
+        ^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/mario/Documents/hailo-apps/hailo_apps/python/standalone_apps/object_detection/object_detection.py", line 120, in run_inference_pipeline
+    config_data = load_json_file("config.json")
+  File "/home/mario/Documents/hailo-apps/hailo_apps/python/core/common/toolbox.py", line 385, in load_json_file
+    raise FileNotFoundError(f"File not found: {path}")
+FileNotFoundError: File not found: config.json
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
