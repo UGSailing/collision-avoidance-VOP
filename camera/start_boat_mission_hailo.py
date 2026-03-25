@@ -166,9 +166,9 @@ def main() -> int:
     print(f"Using hailo-apps root: {hailo_root}")
 
     completed = subprocess.run(
-        cmd,
-        cwd=str(hailo_root),
-        env=env,
+    cmd,
+    cwd=str(app_path.parent), 
+    env=env,
     )
     return int(completed.returncode)
 
