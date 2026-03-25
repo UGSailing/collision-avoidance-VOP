@@ -5,6 +5,31 @@ import argparse
 import subprocess
 import sys
 from pathlib import Path
+from datetime import datetime
+from typing import Any
+
+import numpy as np
+import yaml
+
+from gi.repository import Gst
+
+import hailo
+from hailo_apps_infra.hailo_rpi_common import app_callback_class
+from hailo_apps_infra.detection_pipeline import GStreamerDetectionApp
+
+import can_comms
+from depth_calculation.single_camera_depth_calculation import (
+    distance_and_angle_from_bbox,
+)
+
+
+"""
+python camera/start_boat_mission.py --backend webcam --webcam-left 0 --webcam-right -1 --model camera/yolo_models/duck.pt --single-camera-depth --object-height-m 0.175 --calib-yaml camera/calibration_yamls/camera_calibration.yaml
+"""
+
+"""
+python camera/start_boat_mission.py --backend pi --camera-left 0 --camera-right 1 --model camera/yolo_models/duck.pt --single-camera-depth --object-height-m 0.175 --calib-yaml camera/calibration_yamls/camera_calibration.yaml
+"""
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
