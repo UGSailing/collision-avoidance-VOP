@@ -24,6 +24,39 @@ class DataCollector:
         self.latest_gga_raw = None # For NTRIP uplinks
         self.rtcm_queue = asyncio.Queue(maxsize=100) # RTCM chunks for the GPS
 
+    def _decode_obstacle_can(self, msg: can.Message):
+        """Decode obstacle angle/distance from a configured CAN frame."""
+        if msg.arbitration_id != config.CAN_OBSTACLE_ID:
+            return None, None
+
+        if bool(msg.is_extended_id) != bool(config.CAN_OBSTACLE_IS_EXTENDED_ID):
+            return None, None
+
+        if msg.dlc < config.CAN_OBSTACLE_DLC:
+            return None, None
+
+        byteorder = config.CAN_OBSTACLE_BYTEORDER.lower()
+        if byteorder not in ("big", "little"):
+            return None, None
+
+        angle_raw = int.from_bytes(
+            msg.data[0:2],
+            byteorder=byteorder,
+            signed=bool(config.CAN_OBSTACLE_ANGLE_SIGNED),
+        )
+        distance_raw = int.from_bytes(
+            msg.data[2:4],
+            byteorder=byteorder,
+            signed=bool(config.CAN_OBSTACLE_DISTANCE_SIGNED),
+        )
+
+        angle = angle_raw * config.CAN_OBSTACLE_ANGLE_SCALE_DEG_PER_LSB
+        distance = distance_raw * config.CAN_OBSTACLE_DISTANCE_SCALE_M_PER_LSB
+        if distance < 0:
+            return None, None
+
+        return angle, distance
+
     async def _can_listener(self):
         bus = can.interface.Bus(
             channel=config.CAN_CHANNEL,
@@ -35,16 +68,26 @@ class DataCollector:
         try:
             async for msg in reader:
                 # print(f"{msg.arbitration_id:X}: {msg.data}")  # temp
-                if None in self.latest_gps.values():
-                    continue  # no GPS fix yet, skip
+                angle, distance = self._decode_obstacle_can(msg)
+                if angle is None or distance is None:
+                    continue  # ignore unrelated CAN traffic
 
-                # TODO extract angle & distance from CAN msg
-                angle = 0    # placeholder
-                distance = 0 # placeholder
+                if None in self.latest_gps.values():
+                    continue  # no GPS position yet, skip
 
                 object_direction = self.latest_gps['heading'] + angle # type: ignore
-                lat = self.latest_gps['latitude'] + distance * np.cos(np.radians(object_direction))
-                lon = self.latest_gps['longitude'] + distance * np.sin(np.radians(object_direction))
+                d_north_m = distance * np.cos(np.radians(object_direction))
+                d_east_m = distance * np.sin(np.radians(object_direction))
+
+                # Convert local meter offsets to latitude/longitude deltas.
+                lat0 = self.latest_gps['latitude']
+                lon0 = self.latest_gps['longitude']
+                lat = lat0 + (d_north_m / config.METERS_PER_DEGREE_LAT) # type: ignore
+
+                meters_per_degree_lon = config.METERS_PER_DEGREE_LAT * np.cos(np.radians(lat0)) # type: ignore
+                if abs(meters_per_degree_lon) < 1e-6:
+                    continue
+                lon = lon0 + (d_east_m / meters_per_degree_lon) # type: ignore
 
                 new_row = pd.DataFrame([{
                     'id': self.camera_id,

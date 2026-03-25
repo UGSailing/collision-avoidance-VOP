@@ -13,14 +13,26 @@ CENTER_RUDDER_RAW = 2048  # Assuming 2048 is straight ahead on the 0-4095 scale
 MAX_RUDDER_TURN = 500     # Maximum raw units the rudder is allowed to turn left/right
 P_GAIN = 5.0              # Proportional gain: How aggressively the boat steers towards the path
 
-# devices
-GPS_PORT = '/dev/ttyAMA0'
-GPS_BAUD = 115200
-GPS_UPDATE_RATE_HZ = 2 # Hz
-READ_TIMEOUT = 0.1
+# CAN
 CAN_CHANNEL = 'can0'
 CAN_BUSTYPE = 'socketcan'
 CAN_BITRATE = 1000000
+CAN_OBSTACLE_ID = 0x120
+CAN_OBSTACLE_IS_EXTENDED_ID = False
+CAN_OBSTACLE_DLC = 4
+CAN_OBSTACLE_ANGLE_SIGNED = True
+CAN_OBSTACLE_DISTANCE_SIGNED = False
+CAN_OBSTACLE_BYTEORDER = 'big'
+CAN_OBSTACLE_ANGLE_SCALE_DEG_PER_LSB = 0.1
+CAN_OBSTACLE_DISTANCE_SCALE_M_PER_LSB = 0.01
+CAN_STEERING_FEEDBACK_ID = 0x01
+CAN_STEERING_COMMAND_ID = 0x02
+CAN_STEERING_FRAME_DLC = 2
+
+# GPS
+GPS_PORT = '/dev/ttyAMA0'
+GPS_BAUD = 115200
+GPS_UPDATE_RATE_HZ = 2 # Hz
 
 # NTRIP Configuration (Unicore / RTK)
 # username & password in env.py
@@ -31,11 +43,6 @@ NTRIP_MOUNT = "FLEPOSVRS32GREC"
 NTRIP_USE_SSL = False
 NTRIP_SEND_GGA_EVERY = 10.0 # seconds
 USER_HEADING_OFFSET_DEG = 0.0
-
-# CAN control signals (boat_main.py autonomous mode)
-# TODO fill in with actual values
-CAN_GO_ID = 0x10    # arbitration ID that triggers run start
-CAN_STOP_ID = 0x11  # arbitration ID that triggers run stop / restart
 
 # geofencing
 GEOFENCE_POND_ZWIJNAARDE = [
@@ -50,7 +57,6 @@ GEOFENCE_POND_ZWIJNAARDE = [
     (51.011450, 3.709382),
     (51.011554, 3.708612)
 ]
-
 EXCLUSION_ZONES = [
     # Zone 1 vierkant
     [

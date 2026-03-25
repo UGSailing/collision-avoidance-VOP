@@ -98,7 +98,7 @@ class PathFollower:
 
     def send_rudder_command(self, target_raw_angle):
         """
-        Sends a desired angle to the ESP32 over CAN (ID 0x02).
+        Sends a desired angle to the ESP32 over CAN.
         target_raw_angle should be an integer between 0 and 4095.
         """
         if self.can_bus is None:
@@ -116,7 +116,7 @@ class PathFollower:
 
         # Create the CAN message (standard 11-bit ID)
         msg = can.Message(
-            arbitration_id=0x02,
+            arbitration_id=config.CAN_STEERING_COMMAND_ID,
             data=data,
             is_extended_id=False
         )
