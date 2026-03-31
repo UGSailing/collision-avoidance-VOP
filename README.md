@@ -17,7 +17,7 @@ project repo for collision avoidance VOP
 - ```cd``` into camera folder
 - from the project root, run:
   ```bash
-python start_boat_mission.py --camera-left 0 --camera-right 1 --duration 60 --depth-calculation dual-camera
+  python start_boat_mission.py --camera-left 0 --camera-right 1 --duration 60 --depth-calculation dual-camera
   ```
 - testen zonder camera hardware (mock mode):
   ```bash
