@@ -10,10 +10,9 @@ from picamera2 import Picamera2
 # python3 stereo_live_capture.py --width 1920 --height 1080 --max-pairs 20 --detect-board
 
 
-def draw_text(img, text, y, color=(0, 255, 0)):
-    """Helper function to draw text on an image."""
+def draw_text(img, text, y):
     cv2.putText(
-        img, text, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2, cv2.LINE_AA
+        img, text, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2, cv2.LINE_AA
     )
 
 
@@ -54,68 +53,43 @@ def main():
     )
     args = parser.parse_args()
 
-    # --- FIX: Create output directories reliably ---
-    # This ensures that if the directories don't exist, they are created,
-    # preventing errors when you try to save images.
     current_file = Path(__file__).resolve()
     camera_dir = current_file.parent.parent
     left_dir = camera_dir / "dual_calib_images" / "left"
     right_dir = camera_dir / "dual_calib_images" / "right"
-    left_dir.mkdir(parents=True, exist_ok=True)
-    right_dir.mkdir(parents=True, exist_ok=True)
 
-    picam_left = None
-    picam_right = None
+    picam_left = Picamera2(args.left_id)
+    picam_right = Picamera2(args.right_id)
+
+    cfg_left = picam_left.create_preview_configuration(
+        main={"size": (args.width, args.height), "format": "RGB888"}
+    )
+    cfg_right = picam_right.create_preview_configuration(
+        main={"size": (args.width, args.height), "format": "RGB888"}
+    )
+
+    picam_left.configure(cfg_left)
+    picam_right.configure(cfg_right)
+
+    picam_left.start()
+    picam_right.start()
+
+    time.sleep(2.0)  # let auto exposure / white balance settle
+
+    pair_idx = 0
+    board_size = (args.cols, args.rows)
+
+    print("Controls:")
+    print("  c or SPACE  -> capture current pair")
+    print("  q or ESC    -> quit")
+    print("Make sure the chessboard is visible in BOTH views before capturing.")
 
     try:
-        # --- FIX: Initialize cameras one by one with error checking ---
-        # This makes it easier to see which camera is failing.
-        print(f"Initializing left camera (ID: {args.left_id})...")
-        picam_left = Picamera2(args.left_id)
-        cfg_left = picam_left.create_preview_configuration(
-            main={"size": (args.width, args.height), "format": "RGB888"}
-        )
-        picam_left.configure(cfg_left)
-        picam_left.start()
-        print("Left camera started.")
-
-        print(f"Initializing right camera (ID: {args.right_id})...")
-        picam_right = Picamera2(args.right_id)
-        cfg_right = picam_right.create_preview_configuration(
-            main={"size": (args.width, args.height), "format": "RGB888"}
-        )
-        picam_right.configure(cfg_right)
-        picam_right.start()
-        print("Right camera started.")
-
-        # Increased sleep time to ensure both cameras stabilize
-        print("Letting cameras stabilize...")
-        time.sleep(3.0)
-
-        pair_idx = 0
-        board_size = (args.cols, args.rows)
-
-        print("\nControls:")
-        print("  c or SPACE  -> capture current pair")
-        print("  q or ESC    -> quit")
-        print("Make sure the chessboard is visible in BOTH views before capturing.\n")
-
         while True:
-            # --- FIX: Capture frames with explicit error checking ---
             frame_left = picam_left.capture_array()
             frame_right = picam_right.capture_array()
 
-            # This is the most important check. If a camera fails, its frame might be None.
-            if frame_left is None or frame_right is None:
-                print("\nERROR: Failed to capture frame from one or both cameras.")
-                if frame_left is None:
-                    print(" -> Left camera returned an invalid frame.")
-                if frame_right is None:
-                    print(" -> Right camera returned an invalid frame.")
-                print("Please check camera connections and IDs.")
-                break
-
-            # Picamera2 gives RGB888; OpenCV expects BGR for normal display/save colors.
+            # Picamera2 gives RGB888 here; OpenCV expects BGR for normal display/save colors.
             frame_left = cv2.cvtColor(frame_left, cv2.COLOR_RGB2BGR)
             frame_right = cv2.cvtColor(frame_right, cv2.COLOR_RGB2BGR)
 
@@ -174,39 +148,23 @@ def main():
                 left_path = left_dir / f"left_{pair_idx:02d}.jpg"
                 right_path = right_dir / f"right_{pair_idx:02d}.jpg"
 
-                # Check if imwrite is successful
-                ok_l = cv2.imwrite(str(left_path), frame_left)
-                ok_r = cv2.imwrite(str(right_path), frame_right)
+                cv2.imwrite(str(left_path), frame_left)
+                cv2.imwrite(str(right_path), frame_right)
 
-                if ok_l and ok_r:
-                    print(f"Saved pair {pair_idx:02d}:")
-                    print(f"  {left_path}")
-                    print(f"  {right_path}")
-                    pair_idx += 1
-                else:
-                    print(f"ERROR: Failed to save pair {pair_idx:02d}.")
+                print(f"Saved pair {pair_idx:02d}:")
+                print(f"  {left_path}")
+                print(f"  {right_path}")
+
+                pair_idx += 1
 
                 if pair_idx >= args.max_pairs:
                     print("Reached max number of pairs.")
                     break
 
-    except Exception as e:
-        # --- FIX: Catch any other errors during initialization ---
-        print(f"\nAn unexpected error occurred: {e}")
-        print("This could be due to a camera not being connected or a system issue.")
-
     finally:
-        # --- FIX: Safely stop cameras ---
-        # This checks if the camera objects were created before trying to stop them.
-        print("\nStopping cameras...")
-        if picam_left:
-            picam_left.stop()
-            print("Left camera stopped.")
-        if picam_right:
-            picam_right.stop()
-            print("Right camera stopped.")
+        picam_left.stop()
+        picam_right.stop()
         cv2.destroyAllWindows()
-        print("Done.")
 
 
 if __name__ == "__main__":
