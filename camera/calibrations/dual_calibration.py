@@ -1,14 +1,19 @@
 import cv2
 import numpy as np
 import glob
+from pathlib import Path
+
 
 # === INSTELLINGEN ===
 
 # aantal binnenhoeken (kolommen, rijen)
 CHECKERBOARD = (8, 6)  # 8 binnenhoeken in breedte; 6 binnenhoeken in hoogte
-SQUARE_SIZE = 28.5  # mm, of een andere eenheid
-img_left_paths = sorted(glob.glob("left/*.jpg"))
-img_right_paths = sorted(glob.glob("right/*.jpg"))
+SQUARE_SIZE = 0.285  # mm, of een andere eenheid
+
+current_file = Path(__file__).resolve()
+camera_dir = current_file.parent.parent
+img_left_paths = sorted((camera_dir / "dual_calib_images" / "left").glob("*.jpg"))
+img_right_paths = sorted((camera_dir / "dual_calib_images" / "right").glob("*.jpg"))
 
 # === OBJECTPUNTEN VAN HET BORD ===
 objp = np.zeros((CHECKERBOARD[0] * CHECKERBOARD[1], 3), np.float32)
@@ -97,9 +102,13 @@ R1, R2, P1, P2, Q, roi1, roi2 = cv2.stereoRectify(K1, dist1, K2, dist2, img_size
 map1x, map1y = cv2.initUndistortRectifyMap(K1, dist1, R1, P1, img_size, cv2.CV_32FC1)
 map2x, map2y = cv2.initUndistortRectifyMap(K2, dist2, R2, P2, img_size, cv2.CV_32FC1)
 
+current_file = Path(__file__).resolve()
+camera_dir = current_file.parent.parent
+output_dir = camera_dir / "calibration_npz" / "stereo_calib.npz"
+
 # === SAVE ===
 np.savez(
-    "calibration_npz/stereo_calib.npz",
+    output_dir,
     K1=K1,
     dist1=dist1,
     K2=K2,

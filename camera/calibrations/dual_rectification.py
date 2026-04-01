@@ -2,19 +2,27 @@ import cv2
 import numpy as np
 import argparse
 import os
+from pathlib import Path
 
 # To run this file:
-# python3 rectify_stereo.py --calib stereo_calib.npz --left left.jpg --right right.jpg --out-left rect_left.jpg --out-right rect_right.jpg --show
+# python3 dual_rectification.py --left dual_calib_images\left\left_18.jpg --right dual_calib_images\right\right_18.jpg --out-left dual_calib_images_rectified\left\left_18.jpg --out-right dual_calib_images_rectified\right\right_18.jpg --show
+# IMPORTANT: give the path after /camera; so e.g. dual_calib_images\left\left_18.jpg
 
 
-def rectify_pair(calib_file, left_path, right_path, out_left, out_right, show=False):
+def rectify_pair(left_path, right_path, out_left, out_right, show=False):
     # loads the dual calib file (.npz)
+    current_file = Path(__file__).resolve()
+    camera_dir = current_file.parent.parent
+    calib_file = camera_dir / "calibration_npz" / "stereo_calib.npz"
     data = np.load(calib_file)
 
     map1x = data["map1x"]
     map1y = data["map1y"]
     map2x = data["map2x"]
     map2y = data["map2y"]
+
+    left_path = camera_dir / left_path
+    right_path = camera_dir / right_path
 
     img_left = cv2.imread(left_path)
     img_right = cv2.imread(right_path)
@@ -28,6 +36,8 @@ def rectify_pair(calib_file, left_path, right_path, out_left, out_right, show=Fa
     rect_left = cv2.remap(img_left, map1x, map1y, cv2.INTER_LINEAR)
     rect_right = cv2.remap(img_right, map2x, map2y, cv2.INTER_LINEAR)
 
+    out_left = camera_dir / out_left
+    out_right = camera_dir / out_right
     cv2.imwrite(out_left, rect_left)
     cv2.imwrite(out_right, rect_right)
 
@@ -50,20 +60,23 @@ def rectify_pair(calib_file, left_path, right_path, out_left, out_right, show=Fa
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--calib", required=True, help="Path to stereo_calib.npz")
-    parser.add_argument("--left", required=True, help="Path to left image")
-    parser.add_argument("--right", required=True, help="Path to right image")
+    parser.add_argument("--left", type=Path, required=True, help="Path to left image")
+    parser.add_argument("--right", type=Path, required=True, help="Path to right image")
     parser.add_argument(
-        "--out-left", default="rect_left.png", help="Output rectified left image"
+        "--out-left",
+        type=Path,
+        default="rect_left.png",
+        help="Output rectified left image",
     )
     parser.add_argument(
-        "--out-right", default="rect_right.png", help="Output rectified right image"
+        "--out-right",
+        type=Path,
+        default="rect_right.png",
+        help="Output rectified right image",
     )
     parser.add_argument(
         "--show", action="store_true", help="Show rectified images with guide lines"
     )
     args = parser.parse_args()
 
-    rectify_pair(
-        args.calib, args.left, args.right, args.out_left, args.out_right, args.show
-    )
+    rectify_pair(args.left, args.right, args.out_left, args.out_right, args.show)
