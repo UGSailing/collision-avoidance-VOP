@@ -95,11 +95,6 @@ def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run mission on Pi cameras or laptop webcam with same script.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=(
-            "Examples:\n"
-            "  Laptop (selfie cam): python camera/start_boat_mission.py --backend webcam --webcam-left 0 --webcam-right -1 --model camera/yolo_models/duck.pt\n"
-            "  Raspberry Pi (2 cams): python start_boat_mission.py --backend pi --camera-left 0 --camera-right 1 --model duck.pt"
-        ),
     )
     parser.add_argument("--backend", choices=("pi", "webcam", "mock"), default="pi")
     parser.add_argument("--duration", type=float, default=10.0)
@@ -110,9 +105,8 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument("--model", type=str, default="duck.pt")
     parser.add_argument("--conf", type=float, default=0.5)
     parser.add_argument(
-        "--single-camera-depth",
-        action="store_true",
-        help="Estimate distance/angle from bbox height using one camera model",
+        "--camera-depth", choices=("single", "dual"),
+        help="Estimate distance/angle from bbox height using one or two camera model",
     )
     parser.add_argument(
         "--object-height-m",
@@ -333,7 +327,7 @@ def main() -> int:
     model = YOLO(args.model)
 
     depth_intrinsics: tuple[float, float, float, float] | None = None
-    if args.single_camera_depth:
+    if args.camera_depth == "single":
         try:
             depth_intrinsics = load_intrinsics_from_yaml(args.calib_yaml)
         except (FileNotFoundError, ValueError) as exc:
@@ -350,6 +344,9 @@ def main() -> int:
             cx,
             cy,
         )
+    elif args.camera_depth == "dual":
+        # Implement stereo depth calculation here
+        print("here")
 
     left_cam = None
     right_cam = None
