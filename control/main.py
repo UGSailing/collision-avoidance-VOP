@@ -3,6 +3,7 @@ import pandas as pd
 import threading
 import subprocess
 import sys
+import time
 from pathlib import Path
 from datetime import datetime
 import config
@@ -46,12 +47,22 @@ def planning_loop(stop_event: threading.Event, run_dir: Path):
 
 def execution_loop(stop_event: threading.Event, run_dir: Path):
     path_follower = PathFollower(run_dir)
+    next_tick = time.monotonic()  # absolute schedule anchor
+
     while not stop_event.is_set():
+        next_tick += 1 / config.PATH_EXECUTION_FREQUENCY_HZ
         try:
-            # path_follower.follow_path(run_dir)
-            stop_event.wait(10)
+            path_follower.follow_path(run_dir)
         except Exception as e:
             print(f"Path execution error: {e}")
+
+        delay = next_tick - time.monotonic()
+
+        if delay > 0:
+            stop_event.wait(delay)
+        else:
+            next_tick = time.monotonic()  # we're late, skip to now to avoid spiraling
+        
 
 if __name__ == "__main__":
     # directories

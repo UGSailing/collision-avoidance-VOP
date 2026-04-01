@@ -7,28 +7,21 @@ SMOOTHING_TOLERANCE = 0.1  # for path waypoint number reduction
 METERS_PER_DEGREE_LAT = 111320  # approximate meters per degree latitude
 
 # path execution parameters
-TARGET_RPM = 60  # TODO TEMP
-TURNS_PER_SEC = TARGET_RPM / 60.0 # TODO TEMP
-CENTER_RUDDER_RAW = 2048  # Assuming 2048 is straight ahead on the 0-4095 scale
-MAX_RUDDER_TURN = 500     # Maximum raw units the rudder is allowed to turn left/right
-P_GAIN = 5.0              # Proportional gain: How aggressively the boat steers towards the path
+PATH_EXECUTION_FREQUENCY_HZ = 2.0 # control loop frequency in Hz
+MAX_RUDDER_ANGLE_DEG = 30.0 # Maximum rudder angle in degrees for safety limits
+FIXED_THRUST = 0.1        # Fixed thrust level (0 to 1) for path following
+LOOKAHEAD_WAYPOINT_COUNT = 4       # Number of future waypoints used for blended heading
+TURN_PREVIEW_SEGMENTS = 3          # Number of path segments used for turn feed-forward
+TURN_FEEDFORWARD_GAIN = 0.25       # How strongly upcoming turn curvature biases heading
+HEADING_DEADBAND_DEG = 2.0         # Ignore tiny heading errors to reduce rudder chatter
+HEADING_ERROR_FOR_MAX_RUDDER_DEG = 45.0  # Heading error (deg) that maps to full rudder
+STEERING_AGGRESSIVENESS = 1.0      # >1.0 more aggressive, <1.0 more gentle steering response
+STEERING_DIRECTION = -1.0          # Flip to +1.0 if rudder sign is reversed on hardware
 
-# CAN
-CAN_CHANNEL = 'can0'
-CAN_BUSTYPE = 'socketcan'
-CAN_BITRATE = 1000000
-CAN_OBSTACLE_ID = 0x120
-CAN_OBSTACLE_IS_EXTENDED_ID = False
-CAN_OBSTACLE_DLC = 4
-CAN_OBSTACLE_ANGLE_SIGNED = True
-CAN_OBSTACLE_DISTANCE_SIGNED = False
-CAN_OBSTACLE_BYTEORDER = 'big'
-CAN_OBSTACLE_ANGLE_SCALE_DEG_PER_LSB = 0.1
-CAN_OBSTACLE_DISTANCE_SCALE_M_PER_LSB = 0.01
-CAN_OBSTACLE_MAX_DLC = 8
-CAN_STEERING_FEEDBACK_ID = 0x01
-CAN_STEERING_COMMAND_ID = 0x02
-CAN_STEERING_FRAME_DLC = 2
+# ESP32 Serial Configuration
+ESP_SERIAL_PORT = '/dev/ttyUSB0'  # Adjust as needed for your system
+ESP_BAUDRATE = 115200
+ESP_TIMEOUT = 0.1  # seconds
 
 # GPS
 GPS_PORT = '/dev/ttyAMA0'
