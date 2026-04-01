@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import glob
 
+
 # === INSTELLINGEN ===
 
 # aantal binnenhoeken (kolommen, rijen)

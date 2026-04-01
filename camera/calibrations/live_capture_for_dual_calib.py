@@ -7,7 +7,7 @@ from pathlib import Path
 import cv2
 from picamera2 import Picamera2
 
-# python3 stereo_live_capture.py --out calib --width 1920 --height 1080 --max-pairs 20 --detect-board
+# python3 stereo_live_capture.py --width 1920 --height 1080 --max-pairs 20 --detect-board
 
 
 def draw_text(img, text, y):
@@ -20,7 +20,6 @@ def main():
     parser = argparse.ArgumentParser(
         description="Live stereo capture with preview for chessboard calibration"
     )
-    parser.add_argument("--out", default="calib", help="Output folder")
     parser.add_argument("--width", type=int, default=1280, help="Capture width")
     parser.add_argument("--height", type=int, default=720, help="Capture height")
     parser.add_argument("--left-id", type=int, default=0, help="Left camera id")
@@ -54,10 +53,10 @@ def main():
     )
     args = parser.parse_args()
 
-    left_dir = "../dual_calib_images/left"
-    right_dir = "../dual_calib_images/right"
-    left_dir.mkdir(parents=True, exist_ok=True)
-    right_dir.mkdir(parents=True, exist_ok=True)
+    current_file = Path(__file__).resolve()
+    camera_dir = current_file.parent.parent
+    left_dir = camera_dir / "dual_calib_images" / "left"
+    right_dir = camera_dir / "dual_calib_images" / "right"
 
     picam_left = Picamera2(args.left_id)
     picam_right = Picamera2(args.right_id)
