@@ -7,7 +7,7 @@ from pathlib import Path
 import cv2
 from picamera2 import Picamera2
 
-# python3 stereo_live_capture.py --width 1920 --height 1080 --max-pairs 20 --detect-board
+# python3 live_capture_for_dual_calib.py --width 1920 --height 1080 --max-pairs 20 --detect-board
 
 
 def draw_text(img, text, y):
