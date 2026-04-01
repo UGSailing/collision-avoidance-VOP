@@ -36,7 +36,7 @@ def main():
         help="Try to detect and draw the chessboard live",
     )
     parser.add_argument(
-        "--cols", type=int, default=9, help="Checkerboard inner corners in width"
+        "--cols", type=int, default=8, help="Checkerboard inner corners in width"
     )
     parser.add_argument(
         "--rows", type=int, default=6, help="Checkerboard inner corners in height"

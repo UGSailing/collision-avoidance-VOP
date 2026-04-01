@@ -22,11 +22,11 @@ from depth_calculation.single_camera_depth_calculation import (
 )
 
 
-"""
+""" WEBCAM vanuit root
 python camera/start_boat_mission.py --backend webcam --webcam-left 0 --webcam-right -1 --model camera/yolo_models/duck.pt --single-camera-depth --object-height-m 0.175 --calib-yaml camera/calibration_yamls/camera_calibration.yaml
 """
 
-"""
+""" RPI vanuit root
 python camera/start_boat_mission.py --backend pi --camera-left 0 --camera-right 1 --model camera/yolo_models/duck.pt --single-camera-depth --object-height-m 0.175 --calib-yaml camera/calibration_yamls/camera_calibration.yaml
 """
 
@@ -41,6 +41,18 @@ H264Encoder: Any = None
 FfmpegOutput: Any = None
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+
+def load_stereo_calib_npz():
+    # loads the dual calib file (.npz)
+    current_file = Path(__file__).resolve()
+    camera_dir = current_file.parent.parent
+    calib_file = camera_dir / "calibration_npz" / "stereo_calib.npz"
+    data = np.load(calib_file)
+    required = ["map1x", "map1y", "map2x", "map2y", "P1", "T"]
+    for k in required:
+        if k not in data:
+            raise ValueError(f"Stereo calib mist key: {k}")
+    return {k: data[k] for k in data.files}
 
 
 def import_yolo() -> None:
