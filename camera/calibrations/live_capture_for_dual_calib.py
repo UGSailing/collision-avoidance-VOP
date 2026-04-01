@@ -57,6 +57,10 @@ def main():
     camera_dir = current_file.parent.parent
     left_dir = camera_dir / "dual_calib_images" / "left"
     right_dir = camera_dir / "dual_calib_images" / "right"
+    print(f"Ensuring output directory exists: {left_dir}")
+    left_dir.mkdir(parents=True, exist_ok=True)
+    print(f"Ensuring output directory exists: {right_dir}")
+    right_dir.mkdir(parents=True, exist_ok=True)
 
     picam_left = Picamera2(args.left_id)
     picam_right = Picamera2(args.right_id)
