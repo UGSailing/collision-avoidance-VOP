@@ -10,10 +10,9 @@ from picamera2 import Picamera2
 # python3 live_capture_for_dual_calib.py --width 1920 --height 1080 --max-pairs 20 --detect-board
 
 
-def draw_text(img, text, y, color=(0, 255, 0)):
-    """Helper function to draw text on an image."""
+def draw_text(img, text, y):
     cv2.putText(
-        img, text, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2, cv2.LINE_AA
+        img, text, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2, cv2.LINE_AA
     )
 
 
@@ -54,59 +53,89 @@ def main():
     )
     args = parser.parse_args()
 
-    # --- Setup directories ---
     current_file = Path(__file__).resolve()
     camera_dir = current_file.parent.parent
     left_dir = camera_dir / "dual_calib_images" / "left"
     right_dir = camera_dir / "dual_calib_images" / "right"
+    print(f"Ensuring output directory exists: {left_dir}")
     left_dir.mkdir(parents=True, exist_ok=True)
+    print(f"Ensuring output directory exists: {right_dir}")
     right_dir.mkdir(parents=True, exist_ok=True)
 
     picam_left = Picamera2(args.left_id)
     picam_right = Picamera2(args.right_id)
 
-    print("Configuring cameras...")
     cfg_left = picam_left.create_preview_configuration(
         main={"size": (args.width, args.height), "format": "RGB888"}
     )
     cfg_right = picam_right.create_preview_configuration(
         main={"size": (args.width, args.height), "format": "RGB888"}
     )
+
     picam_left.configure(cfg_left)
     picam_right.configure(cfg_right)
+
+    picam_left.start()
+    picam_right.start()
+
+    time.sleep(2.0)  # let auto exposure / white balance settle
 
     pair_idx = 0
     board_size = (args.cols, args.rows)
 
+    print("Controls:")
+    print("  c or SPACE  -> capture current pair")
+    print("  q or ESC    -> quit")
+    print("Make sure the chessboard is visible in BOTH views before capturing.")
+
     try:
-        print("Starting camera streams for preview...")
-        picam_left.start()
-        picam_right.start()
-        time.sleep(2.0)  # let auto exposure / white balance settle
-
-        print("\nControls:")
-        print("  c or SPACE  -> capture current pair")
-        print("  q or ESC    -> quit")
-        print("Make sure the chessboard is visible in BOTH views before capturing.\n")
-
         while True:
-            # --- Main preview loop ---
             frame_left = picam_left.capture_array()
             frame_right = picam_right.capture_array()
 
-            # This check is important in case a camera stream fails
-            if frame_left is None or frame_right is None:
-                print("ERROR: Failed to get frame from a camera during preview.")
-                break
+            # Picamera2 gives RGB888 here; OpenCV expects BGR for normal display/save colors.
+            frame_left = cv2.cvtColor(frame_left, cv2.COLOR_RGB2BGR)
+            frame_right = cv2.cvtColor(frame_right, cv2.COLOR_RGB2BGR)
 
-            preview_left = cv2.cvtColor(frame_left, cv2.COLOR_RGB2BGR)
-            preview_right = cv2.cvtColor(frame_right, cv2.COLOR_RGB2BGR)
+            if args.flip_left:
+                frame_left = cv2.flip(frame_left, 1)
+            if args.flip_right:
+                frame_right = cv2.flip(frame_right, 1)
 
-            # (The rest of the preview drawing logic is the same)
+            preview_left = frame_left.copy()
+            preview_right = frame_right.copy()
+
+            ok_left = ok_right = False
+
+            if args.detect_board:
+                gray_left = cv2.cvtColor(preview_left, cv2.COLOR_BGR2GRAY)
+                gray_right = cv2.cvtColor(preview_right, cv2.COLOR_BGR2GRAY)
+
+                flags = cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_NORMALIZE_IMAGE
+                ok_left, corners_left = cv2.findChessboardCorners(
+                    gray_left, board_size, flags
+                )
+                ok_right, corners_right = cv2.findChessboardCorners(
+                    gray_right, board_size, flags
+                )
+
+                if ok_left:
+                    cv2.drawChessboardCorners(
+                        preview_left, board_size, corners_left, ok_left
+                    )
+                if ok_right:
+                    cv2.drawChessboardCorners(
+                        preview_right, board_size, corners_right, ok_right
+                    )
+
             draw_text(preview_left, f"LEFT cam {args.left_id}", 30)
             draw_text(preview_right, f"RIGHT cam {args.right_id}", 30)
             draw_text(preview_left, f"pair {pair_idx}/{args.max_pairs}", 60)
             draw_text(preview_right, f"pair {pair_idx}/{args.max_pairs}", 60)
+
+            if args.detect_board:
+                draw_text(preview_left, f"board: {'YES' if ok_left else 'NO'}", 90)
+                draw_text(preview_right, f"board: {'YES' if ok_right else 'NO'}", 90)
 
             combined = cv2.hconcat([preview_left, preview_right])
             draw_text(
@@ -116,80 +145,30 @@ def main():
             cv2.imshow("Stereo preview", combined)
             key = cv2.waitKey(1) & 0xFF
 
-            if key in (ord("q"), 27):
+            if key in (ord("q"), 27):  # q or ESC
                 break
 
-            # --- FIX: The Capture Process ---
-            if key in (ord("c"), 32):
-                print(f"\n[CAPTURE] User pressed capture for pair {pair_idx:02d}.")
-
-                # 1. Stop the continuous streams to free the cameras
-                print("  -> Stopping preview streams...")
-                picam_left.stop()
-                picam_right.stop()
-                time.sleep(0.5)  # Give time for cameras to release
-
-                # 2. Capture high-quality still images
-                print("  -> Capturing still images...")
-                # We re-use the same configuration, but capture a single frame
-                capture_left = picam_left.capture_array()
-                capture_right = picam_right.capture_array()
-
-                if capture_left is None or capture_right is None:
-                    print(
-                        "  -> ERROR: Failed to capture still image from one or both cameras!"
-                    )
-                    # Try to restart streams to not leave user blind
-                    picam_left.start()
-                    picam_right.start()
-                    continue  # Go back to preview loop
-
-                # Convert to BGR for saving with OpenCV
-                save_left = cv2.cvtColor(capture_left, cv2.COLOR_RGB2BGR)
-                save_right = cv2.cvtColor(capture_right, cv2.COLOR_RGB2BGR)
-
-                # Apply optional flip
-                if args.flip_left:
-                    save_left = cv2.flip(save_left, 1)
-                if args.flip_right:
-                    save_right = cv2.flip(save_right, 1)
-
-                # 3. Save the images
+            if key in (ord("c"), 32):  # c or SPACE
                 left_path = left_dir / f"left_{pair_idx:02d}.jpg"
                 right_path = right_dir / f"right_{pair_idx:02d}.jpg"
-                ok_l = cv2.imwrite(str(left_path), save_left)
-                ok_r = cv2.imwrite(str(right_path), save_right)
 
-                if ok_l and ok_r:
-                    print(f"  -> Successfully saved pair {pair_idx:02d}.")
-                    pair_idx += 1
-                else:
-                    print(
-                        "  -> ERROR: Failed to save images. Check permissions/disk space."
-                    )
+                cv2.imwrite(str(left_path), frame_left)
+                cv2.imwrite(str(right_path), frame_right)
 
-                # 4. Restart the streams for the live preview
-                print("  -> Restarting preview streams...")
-                picam_left.start()
-                picam_right.start()
-                time.sleep(1.0)  # Let cameras settle again
+                print(f"Saved pair {pair_idx:02d}:")
+                print(f"  {left_path}")
+                print(f"  {right_path}")
+
+                pair_idx += 1
 
                 if pair_idx >= args.max_pairs:
-                    print("\nReached max number of pairs.")
+                    print("Reached max number of pairs.")
                     break
 
-    except Exception as e:
-        print(f"\nAn unexpected error occurred: {e}")
-
     finally:
-        print("\nStopping cameras...")
-        # Check if running before stopping
-        if picam_left and picam_left.is_open:
-            picam_left.stop()
-        if picam_right and picam_right.is_open:
-            picam_right.stop()
+        picam_left.stop()
+        picam_right.stop()
         cv2.destroyAllWindows()
-        print("Done.")
 
 
 if __name__ == "__main__":
