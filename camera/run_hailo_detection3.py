@@ -2,12 +2,13 @@
 # VERGEET NIET DE source setup... vanuit hailo als venv te draaien!!!!!
 # Linux examples:
 # cd ~/Documents/collision-avoidance-VOP/camera
-# python3 run_hailo_detection3.py --input rpi --object-height 0.23
+# python3 run_hailo_detection3.py --input rpi --object-height 0.21367
 #
 # cd ~/Documents/collision-avoidance-VOP/camera
 # python3 run_hailo_detection3.py --input rpi --object-height 0.23 --save-output
+#python3 run_hailo_detection3.py --input /home/mario/Documents/collision-avoidance-VOP/camera/recordings/Ball_duck_water/IMG_4478.mov --object-height 0.213267
 
-"""Run rectified Hailo bottle detection with mono distance and azimuth logging."""
+"""Run rectified Hailo sports ball detection with mono distance and azimuth logging."""
 
 import argparse
 import csv
@@ -43,7 +44,7 @@ def build_parser() -> argparse.ArgumentParser:
     default_hailo_root = Path.home() / "Documents" / "hailo-apps"
 
     parser = argparse.ArgumentParser(
-        description="Run rectified Hailo bottle detection with mono distance logging."
+        description="Run rectified Hailo sports ball detection with mono distance logging."
     )
     parser.add_argument(
         "--hailo-apps-root",
@@ -71,8 +72,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--log-label",
-        default="bottle",
-        help="Object label to log when detected (default: bottle).",
+        default="sports ball",
+        help="Object label to log when detected (default: sports ball).",
     )
     parser.add_argument(
         "--calib",
@@ -84,7 +85,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--object-height",
         type=float,
         required=True,
-        help="Real-world object height in meters, for example the bottle height.",
+        help="Real-world object height in meters, for example the sports ball height.",
     )
     parser.add_argument(
         "--csv-name",

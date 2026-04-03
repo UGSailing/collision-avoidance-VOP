@@ -1,0 +1,1 @@
+{"timestamp_utc": "2026-04-03T14:52:44.426Z", "elapsed_s": 2.258, "detections": [{"camera": "pi:0", "label": "sports ball", "confidence": 0.3274, "bbox_xyxy": [1582.34, 428.49, 1637.45, 485.21], "distance_m": 7.258, "angle_deg": 20.63}]}

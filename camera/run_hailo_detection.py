@@ -10,12 +10,12 @@
 # cd ~/Documents/collision-avoidance-VOP/camera
 # python3 run_hailo_detection.py --input rpi --save-output
 
-"""Run Hailo's official object detection app and log bottle detections.
+"""Run Hailo's official object detection app and log sports ball detections.
 
 This wrapper keeps the official Hailo object detection application as the
 runtime engine. It creates a new run folder under camera/recordings, prepares a
 single-camera output directory, and injects a small runtime hook that logs only
-"bottle" detections to a JSONL file.
+"sports ball" detections to a JSONL file.
 """
 
 import argparse
@@ -63,8 +63,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--log-label",
-        default="bottle",
-        help="Object label to log when detected (default: bottle).",
+        default="sports ball",
+        help="Object label to log when detected (default: sports ball).",
     )
 
     # Internal-only flags for the re-executed subprocess that imports Hailo.
@@ -246,7 +246,7 @@ def install_detection_logger(
     log_label: str,
     camera_name: str,
 ):
-    """Monkeypatch Hailo's post-process handler to log bottle detections."""
+    """Monkeypatch Hailo's post-process handler to log sports ball detections."""
     sys.path.insert(0, str(hailo_apps_root))
 
     post_process_module = importlib.import_module(
