@@ -35,11 +35,12 @@ Voor picamera moet aparte installatie met bv. "sudo apt install python3-picamera
 
 ## Control
 ### general
-- /
+- convert `boat_main.py` to not use CAN
+
 ### data collection
-- read in CAN & gps messages and put coords into csv
-  - test with GPS
-  - test with CAN
+- read in camera & gps messages and put coords into csv
+  - test with GPS ✅
+  - test with camera
 - other ways to store objects
 
 ### path planning

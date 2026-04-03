@@ -23,6 +23,17 @@ ESP_SERIAL_PORT = '/dev/ttyUSB0'  # Adjust as needed for your system
 ESP_BAUDRATE = 115200
 ESP_TIMEOUT = 0.1  # seconds
 
+# Obstacle input serial configuration
+# Expected line format:
+#   "<angle_deg>,<distance_m>" or "<angle_deg>,<distance_m>;<angle_deg>,<distance_m>;..."
+OBSTACLE_PORT = '/dev/ttyUSB1'
+OBSTACLE_BAUDRATE = 115200
+OBSTACLE_TIMEOUT = 0.1
+OBSTACLE_RECONNECT_DELAY_S = 2.0
+OBSTACLE_VALUE_SEPARATOR = ','
+OBSTACLE_PAIR_SEPARATOR = ';'
+OBSTACLE_SERIAL_DEBUG = False
+
 # GPS
 GPS_PORT = '/dev/ttyAMA0'
 GPS_BAUD = 115200
