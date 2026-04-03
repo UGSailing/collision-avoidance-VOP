@@ -1,0 +1,10 @@
+2026-04-03 15:43:37 | INFO | Run folder: /home/mario/Documents/collision-avoidance-VOP/camera/recordings/20260403_154337
+2026-04-03 15:43:37 | INFO | Camera output dir: /home/mario/Documents/collision-avoidance-VOP/camera/recordings/20260403_154337/camera0_recording
+2026-04-03 15:43:37 | INFO | Hailo apps root: /home/mario/Documents/hailo-apps
+2026-04-03 15:43:37 | INFO | Calibration YAML: /home/mario/Documents/collision-avoidance-VOP/camera/calibration_yamls/camera_calibration.yaml
+2026-04-03 15:43:37 | INFO | Network: /home/mario/Documents/collision-avoidance-VOP/camera/yolo_models/duck.hef
+2026-04-03 15:43:37 | INFO | Input: rpi
+2026-04-03 15:43:37 | INFO | Target label: duck
+2026-04-03 15:43:37 | INFO | Source label override: person -> duck
+2026-04-03 15:43:37 | INFO | Object height (m): 0.23
+2026-04-03 15:43:37 | INFO | CSV path: /home/mario/Documents/collision-avoidance-VOP/camera/recordings/20260403_154337/detections.csv
