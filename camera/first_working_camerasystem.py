@@ -11,7 +11,7 @@
 # python3 run_hailo_detection3_duck.py --input /dev/video0 --object-height 0.23
 
 
-#python3 run_hailo_detection3_duck.py --input /home/mario/Documents/collision-avoidance-VOP/camera/recordings/Ball_duck_water/duck_in_water.mov --object-height 0.213267
+# python3 run_hailo_detection3_duck.py --input /home/mario/Documents/collision-avoidance-VOP/camera/recordings/Ball_duck_water/duck_in_water.mov --object-height 0.213267
 """Run rectified Hailo duck detection with mono distance and azimuth logging."""
 
 import argparse
@@ -451,8 +451,10 @@ def ensure_csv_header(csv_path: Path) -> None:
 
 
 def iso_timestamp_utc() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace(
-        "+00:00", "Z"
+    return (
+        datetime.now(timezone.utc)
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z")
     )
 
 
@@ -502,7 +504,9 @@ def append_detection_rows(
             )
 
 
-def draw_distance_overlay(frame: np.ndarray, estimates: list[DetectionEstimate]) -> None:
+def draw_distance_overlay(
+    frame: np.ndarray, estimates: list[DetectionEstimate]
+) -> None:
     for estimate in estimates:
         x1, y1, _, _ = [int(round(value)) for value in estimate.bbox_xyxy]
         text = f"{estimate.label} | {estimate.distance_m:.2f}m | {estimate.angle_deg:.2f}deg"
@@ -541,7 +545,9 @@ def install_label_override_hooks(hailo_apps_root: Path) -> None:
             patched_labels[0] = TARGET_LABEL
         return patched_labels
 
-    def patched_draw_detections(detections, img_out, labels, tracker=None, draw_trail=False):
+    def patched_draw_detections(
+        detections, img_out, labels, tracker=None, draw_trail=False
+    ):
         patched_labels = [rename_label(label) for label in labels]
         return original_draw_detections(
             detections,
@@ -634,7 +640,9 @@ def install_rectified_input_hooks(hailo_apps_root: Path, calib_path: Path) -> No
             input_queue.put((frames, processed))
         input_queue.put(None)
 
-    def patched_preprocess_images(images, batch_size, input_queue, width, height, preprocess_fn):
+    def patched_preprocess_images(
+        images, batch_size, input_queue, width, height, preprocess_fn
+    ):
         for batch in toolbox_module.divide_list_to_batches(images, batch_size):
             rectified_batch = [rectify_for_pipeline(image) for image in batch]
             input_queue.put(
@@ -698,6 +706,29 @@ def install_rectified_input_hooks(hailo_apps_root: Path, calib_path: Path) -> No
     toolbox_module.init_input_source = patched_init_input_source
 
 
+def install_headless_cv2_hooks() -> None:
+    def _noop(*_args, **_kwargs):
+        return None
+
+    def _waitkey_noop(*_args, **_kwargs):
+        return -1
+
+    # Force headless behavior so no GUI backend is required on monitor-less systems.
+    cv2.imshow = _noop
+    cv2.namedWindow = _noop
+    cv2.startWindowThread = _noop
+    cv2.destroyWindow = _noop
+    cv2.destroyAllWindows = _noop
+    cv2.waitKey = _waitkey_noop
+    cv2.pollKey = _waitkey_noop
+
+    if hasattr(cv2, "waitKeyEx"):
+        cv2.waitKeyEx = _waitkey_noop
+
+    if hasattr(cv2, "getWindowProperty"):
+        cv2.getWindowProperty = _waitkey_noop
+
+
 def install_distance_logger(
     hailo_apps_root: Path,
     jsonl_path: Path,
@@ -715,7 +746,9 @@ def install_distance_logger(
     original_handler = post_process_module.inference_result_handler
     extract_detections = post_process_module.extract_detections
     calib_image_size, camera_matrix, distortion = load_calib_yaml(calib_path)
-    rectification_cache: dict[tuple[int, int], tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
+    rectification_cache: dict[
+        tuple[int, int], tuple[np.ndarray, np.ndarray, np.ndarray]
+    ] = {}
     start_time = time.monotonic()
 
     tcp_server = None
@@ -733,6 +766,7 @@ def install_distance_logger(
     ser = None
     if usb_device:
         import serial
+
         ser = serial.Serial(usb_device, 9600, timeout=1)
 
     def close_outputs() -> None:
@@ -747,7 +781,12 @@ def install_distance_logger(
     atexit.register(close_outputs)
 
     def patched_handler(
-        original_frame, infer_results, labels, config_data, tracker=None, draw_trail=False
+        original_frame,
+        infer_results,
+        labels,
+        config_data,
+        tracker=None,
+        draw_trail=False,
     ):
         detections = extract_detections(original_frame, infer_results, config_data)
         classes = detections["detection_classes"]
@@ -822,7 +861,12 @@ def install_distance_logger(
         return frame_with_detections
 
     def wrapped_handler(
-        original_frame, infer_results, labels, config_data, tracker=None, draw_trail=False
+        original_frame,
+        infer_results,
+        labels,
+        config_data,
+        tracker=None,
+        draw_trail=False,
     ):
         try:
             return patched_handler(
@@ -905,6 +949,7 @@ def run_internal_hailo(args: argparse.Namespace) -> int:
     csv_path = run_dir / args.csv_name
 
     os.chdir(object_detection_dir)
+    install_headless_cv2_hooks()
     install_label_override_hooks(hailo_root)
     install_rectified_input_hooks(hailo_root, calib_path)
     install_distance_logger(
