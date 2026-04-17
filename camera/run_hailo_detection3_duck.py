@@ -2,7 +2,11 @@
 # VERGEET NIET DE source setup... vanuit hailo als venv te draaien!!!!!
 # Linux examples:
 # cd ~/Documents/collision-avoidance-VOP/camera
+<<<<<<< HEAD
 # python3 run_hailo_detection3_duck.py --input rpi --object-height 0.23
+=======
+# python3 run_hailo_detection3_duck.py --input rpi --object-height 0.21367
+>>>>>>> a2ec6018638691f4b60b8215bd499c760bb11239
 #
 # cd ~/Documents/collision-avoidance-VOP/camera
 # python3 run_hailo_detection3_duck.py --input rpi --object-height 0.23 --save-output
@@ -10,6 +14,11 @@
 # cd ~/Documents/collision-avoidance-VOP/camera
 # python3 run_hailo_detection3_duck.py --input /dev/video0 --object-height 0.23
 
+<<<<<<< HEAD
+=======
+
+#python3 run_hailo_detection3_duck.py --input /home/mario/Documents/collision-avoidance-VOP/camera/recordings/Ball_duck_water/duck_in_water.mov --object-height 0.213267
+>>>>>>> a2ec6018638691f4b60b8215bd499c760bb11239
 """Run rectified Hailo duck detection with mono distance and azimuth logging."""
 
 import argparse
