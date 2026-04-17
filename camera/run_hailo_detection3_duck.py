@@ -11,7 +11,7 @@
 # python3 run_hailo_detection3_duck.py --input /dev/video0 --object-height 0.23
 
 
-#python3 run_hailo_detection3_duck.py --input /home/mario/Documents/collision-avoidance-VOP/camera/recordings/Ball_duck_water/IMG_4477.mov --object-height 0.213267
+#python3 run_hailo_detection3_duck.py --input /home/mario/Documents/collision-avoidance-VOP/camera/recordings/Ball_duck_water/duck_in_water.mov --object-height 0.213267
 """Run rectified Hailo duck detection with mono distance and azimuth logging."""
 
 import argparse
