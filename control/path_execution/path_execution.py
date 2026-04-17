@@ -1,23 +1,22 @@
 import pandas as pd
 import math
 import config
-import can
+import serial
+from typing import TypeGuard, Union
 
 class PathFollower:
     def __init__(self, run_dir):
         self.run_dir = run_dir
-        
-        # Safe initialization for bench testing without hardware
-        try:
-            self.can_bus = can.interface.Bus(
-                channel=config.CAN_CHANNEL,
-                bustype=config.CAN_BUSTYPE,
-                bitrate=config.CAN_BITRATE,
-            )
-        except (can.CanError, OSError):
-            self.can_bus = None
+        self.ser = serial.Serial(config.ESP_SERIAL_PORT, config.ESP_BAUDRATE, timeout=config.ESP_TIMEOUT)
 
-    def calculate_bearing(self, lat1, lon1, lat2, lon2):
+    def _is_numeric(self, value: object) -> TypeGuard[float | int]:
+        return isinstance(value, (int, float))
+
+    def _normalize_angle_deg(self, angle_deg: float) -> float:
+        """Normalizes an angle to [-180, 180)."""
+        return (angle_deg + 180) % 360 - 180
+
+    def _compute_bearing(self, lat1, lon1, lat2, lon2):
         """Calculates the true bearing (in degrees) from point 1 to point 2."""
         lat1_rad = math.radians(lat1)
         lat2_rad = math.radians(lat2)
@@ -30,7 +29,91 @@ class PathFollower:
         initial_bearing = math.atan2(y, x)
         return (math.degrees(initial_bearing) + 360) % 360
 
-    def get_current_heading_and_location(self, run_dir):
+    def _compute_blended_target_bearing(self, curr_lat: float, curr_lon: float, path_df: pd.DataFrame) -> float:
+        """Computes a weighted target bearing from a few upcoming waypoints."""
+        future_waypoints = path_df.iloc[1:1 + config.LOOKAHEAD_WAYPOINT_COUNT]
+
+        sin_sum = 0.0
+        cos_sum = 0.0
+        weight_sum = 0.0
+
+        for i, (_, waypoint) in enumerate(future_waypoints.iterrows(), start=1):
+            waypoint_lat = float(waypoint['latitude'])
+            waypoint_lon = float(waypoint['longitude'])
+            bearing = self._compute_bearing(curr_lat, curr_lon, waypoint_lat, waypoint_lon)
+
+            weight = 1.0 / i
+            rad = math.radians(bearing)
+            sin_sum += weight * math.sin(rad)
+            cos_sum += weight * math.cos(rad)
+            weight_sum += weight
+
+        if weight_sum == 0.0:
+            return self._compute_bearing(
+                curr_lat,
+                curr_lon,
+                float(path_df.iloc[1]['latitude']),
+                float(path_df.iloc[1]['longitude'])
+            )
+
+        return (math.degrees(math.atan2(sin_sum, cos_sum)) + 360) % 360
+
+    def _compute_turn_feedforward(self, path_df: pd.DataFrame) -> float:
+        """Estimates near-future path curvature as a heading feed-forward term. This compensates for the boat's steering lag and helps it start turning earlier into bends."""
+        preview_segments = max(1, int(config.TURN_PREVIEW_SEGMENTS))
+        preview_points = path_df.iloc[:preview_segments + 2]
+        if len(preview_points) < 3:
+            return 0.0
+
+        segment_bearings = []
+        for i in range(len(preview_points) - 1):
+            p0 = preview_points.iloc[i]
+            p1 = preview_points.iloc[i + 1]
+            segment_bearings.append(
+                self._compute_bearing(
+                    float(p0['latitude']),
+                    float(p0['longitude']),
+                    float(p1['latitude']),
+                    float(p1['longitude'])
+                )
+            )
+
+        if len(segment_bearings) < 2:
+            return 0.0
+
+        weighted_turn_sum = 0.0
+        weight_sum = 0.0
+        for i in range(len(segment_bearings) - 1):
+            turn_delta = self._normalize_angle_deg(segment_bearings[i + 1] - segment_bearings[i])
+            weight = 1.0 / (i + 1)
+            weighted_turn_sum += turn_delta * weight
+            weight_sum += weight
+
+        if weight_sum == 0.0:
+            return 0.0
+
+        avg_turn_delta = weighted_turn_sum / weight_sum
+        return float(config.TURN_FEEDFORWARD_GAIN) * avg_turn_delta
+
+    def _heading_error_to_rudder_angle(self, heading_error_deg: float) -> float:
+        """Maps heading error to a limited rudder angle with configurable aggressiveness."""
+        aggressiveness = max(0.1, float(config.STEERING_AGGRESSIVENESS))
+        max_error_for_full_rudder = max(1e-6, float(config.HEADING_ERROR_FOR_MAX_RUDDER_DEG))
+
+        # Ignore tiny heading errors to reduce rudder chatter
+        if abs(heading_error_deg) <= config.HEADING_DEADBAND_DEG:
+            return 0.0
+
+        effective_error = math.copysign(abs(heading_error_deg) - config.HEADING_DEADBAND_DEG, heading_error_deg)
+        normalized_error = max(-1.0, min(1.0, effective_error / max_error_for_full_rudder))
+
+        # Non-linear scaling for rudder: small adjustments for minor errors, more aggressive for larger errors
+        shaped_error = math.tanh(aggressiveness * normalized_error) / math.tanh(aggressiveness)
+
+        return float(config.STEERING_DIRECTION) * shaped_error * config.MAX_RUDDER_ANGLE_DEG
+    
+    def _get_current_heading_and_location(self, run_dir) -> tuple[float | None, float | None, float | None]:
+        """Reads the latest GPS point from points.csv and returns (lat, lon, heading)."""
         try:
             df = pd.read_csv(run_dir / 'points.csv')
             gps_points = df[df['category'] == 'gps']
@@ -40,95 +123,76 @@ class PathFollower:
                 
             current_loc = gps_points.loc[gps_points['id'].idxmax()]
             current_heading = current_loc.get('heading', None)
+            current_lat = current_loc.get('latitude', None)
+            current_lon = current_loc.get('longitude', None)
             
-            if pd.isna(current_heading): # type: ignore
+            if pd.isna(current_heading) or pd.isna(current_lat) or pd.isna(current_lon): # type: ignore
+                return None, None, None
+
+            if not (
+                self._is_numeric(current_heading)
+                and self._is_numeric(current_lat)
+                and self._is_numeric(current_lon)
+            ):
                 return None, None, None
                 
-            return current_loc['latitude'], current_loc['longitude'], current_heading
-        except (ValueError, KeyError, FileNotFoundError):
+            return float(current_lat), float(current_lon), float(current_heading)
+        except (TypeError, ValueError, KeyError, FileNotFoundError):
             return None, None, None
 
     def follow_path(self, run_dir):
-        """Reads the path, calculates steering error, and sends CAN command."""
+        """Reads the path, calculates steering error, and sends ESP32 command."""
         try:
             # 1. Get current state
-            curr_lat, curr_lon, current_heading = self.get_current_heading_and_location(run_dir)
-            if curr_lat is None:
-                return # Waiting for GPS data
+            curr_lat, curr_lon, current_heading = self._get_current_heading_and_location(run_dir)
+            if not (self._is_numeric(curr_lat) and self._is_numeric(curr_lon) and self._is_numeric(current_heading)):
+                # Waiting for GPS data
+                self._send_autopilot_command(0, 0)
+                return
+            curr_lat_f = float(curr_lat)
+            curr_lon_f = float(curr_lon)
+            current_heading_f = float(current_heading)
 
             # 2. Read the planned path
             path_file = run_dir / 'path.csv'
             if not path_file.exists():
+                self._send_autopilot_command(0, 0)
                 return
-                
             path_df = pd.read_csv(path_file)
             if len(path_df) < 2:
                 # We are at the destination (or no path exists)
-                if self.can_bus:
-                    self.send_rudder_command(config.CENTER_RUDDER_RAW)
+                self._send_autopilot_command(0, 0)
                 return
 
-            # 3. Get the next waypoint (index 1)
-            next_lat = path_df.iloc[1]['latitude']
-            next_lon = path_df.iloc[1]['longitude']
+            # 3. Build a lookahead target heading from multiple upcoming waypoints.
+            target_bearing = self._compute_blended_target_bearing(curr_lat_f, curr_lon_f, path_df)
 
-            # 4. Calculate desired bearing
-            target_bearing = self.calculate_bearing(curr_lat, curr_lon, next_lat, next_lon)
+            # 4. Add turn preview feed-forward so the boat starts steering into bends earlier.
+            target_bearing = (target_bearing + self._compute_turn_feedforward(path_df)) % 360
 
-            # 5. Calculate heading error
-            error = target_bearing - current_heading # type: ignore
-            error = (error + 180) % 360 - 180 
+            # 5. Convert relative heading target to a rudder angle.
+            relative_target_heading_deg = self._normalize_angle_deg(target_bearing - current_heading_f)
+            rudder_angle_deg = self._heading_error_to_rudder_angle(relative_target_heading_deg)
 
-            # 6. P-Controller math
-            rudder_adjustment = int(error * config.P_GAIN) # type: ignore
-            rudder_adjustment = max(-config.MAX_RUDDER_TURN, min(config.MAX_RUDDER_TURN, rudder_adjustment))
-            target_raw_angle = config.CENTER_RUDDER_RAW + rudder_adjustment
+            # 6. Send rudder + fixed thrust to ESP32.
+            self._send_autopilot_command(rudder_angle_deg, config.FIXED_THRUST)
 
-            # 7. Send command
-            if self.can_bus:
-                success = self.send_rudder_command(target_raw_angle)
-                if success:
-                    print(f"Target Bearing: {target_bearing:.1f}° | Error: {error:.1f}° | Sending Command: {target_raw_angle}")
-            else:
-                # Mock Mode Print
-                print(f"[MOCK] Target Bearing: {target_bearing:.1f}° | Error: {error:.1f}° | Command: {target_raw_angle}")
-
+            print(
+                f"Target Bearing: {target_bearing:.1f}° | "
+                f"Heading Error: {relative_target_heading_deg:.1f}° | "
+                f"Rudder Cmd: {rudder_angle_deg:.1f}°"
+            )
         except Exception as e:
             print(f"Execution Error: {e}")
 
-    def send_rudder_command(self, target_raw_angle):
-        """
-        Sends a desired angle to the ESP32 over CAN.
-        target_raw_angle should be an integer between 0 and 4095.
-        """
-        if self.can_bus is None:
-            print("Cannot send, CAN bus not initialized.")
-            return False
+    def _build_autopilot_message(self, target_angle: Union[int, float], target_thrust: Union[int, float]) -> str:
+        
+        angle = max(-config.MAX_RUDDER_ANGLE_DEG, min(config.MAX_RUDDER_ANGLE_DEG, float(target_angle)))
+        thrust = max(-1.0, min(1.0, float(target_thrust)))
 
-        # Ensure the angle is within the 12-bit range of the AS5600 logic
-        target_raw_angle = max(0, min(4095, int(target_raw_angle)))
+        # Firmware expects: "angle,thrust\n"
+        return f"{angle:.2f},{thrust:.3f}\n"
 
-        # Split the integer into 2 bytes (High byte, Low byte)
-        data = [
-            (target_raw_angle >> 8) & 0xFF,
-            target_raw_angle & 0xFF
-        ]
-
-        # Create the CAN message (standard 11-bit ID)
-        msg = can.Message(
-            arbitration_id=config.CAN_STEERING_COMMAND_ID,
-            data=data,
-            is_extended_id=False
-        )
-
-        try:
-            self.can_bus.send(msg)
-            return True
-        except can.CanError as e:
-            print(f"Message failed to send: {e}")
-            return False
-            
-    def shutdown(self):
-        """Cleanly close the CAN bus."""
-        if self.can_bus is not None:
-            self.can_bus.shutdown()
+    def _send_autopilot_command(self, target_angle: Union[int, float], target_thrust: Union[int, float]) -> None:
+        msg = self._build_autopilot_message(target_angle, target_thrust)
+        self.ser.write(msg.encode("ascii"))

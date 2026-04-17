@@ -1,5 +1,4 @@
 import asyncio
-import can
 import serial_asyncio
 import numpy as np
 import pandas as pd
@@ -13,7 +12,7 @@ class DataCollector:
         self.run_dir = run_dir
         self.gps_id = 0
         self.camera_id = 0
-        self._csv_lock = asyncio.Lock()
+        self.csv_lock = asyncio.Lock()
         
         # State shared between tasks
         self.latest_gps: dict[str, float | None] = {
@@ -24,87 +23,115 @@ class DataCollector:
         self.latest_gga_raw = None # For NTRIP uplinks
         self.rtcm_queue = asyncio.Queue(maxsize=100) # RTCM chunks for the GPS
 
-    def _decode_obstacle_can(self, msg: can.Message):
-        """Decode obstacle angle/distance from a configured CAN frame."""
-        if msg.arbitration_id != config.CAN_OBSTACLE_ID:
-            return None, None
+    def _parse_obstacle_serial_line(self, line: str):
+        """Parses serial obstacle data into (angle_deg, distance_m) tuples."""
+        pair_sep = str(config.OBSTACLE_PAIR_SEPARATOR)
+        val_sep = str(config.OBSTACLE_VALUE_SEPARATOR)
+        objects = []
 
-        if bool(msg.is_extended_id) != bool(config.CAN_OBSTACLE_IS_EXTENDED_ID):
-            return None, None
+        for raw_pair in line.split(pair_sep):
+            pair = raw_pair.strip()
+            if not pair:
+                continue
 
-        if msg.dlc < config.CAN_OBSTACLE_DLC:
-            return None, None
+            parts = [p.strip() for p in pair.split(val_sep)]
+            if len(parts) != 2:
+                continue
 
-        byteorder = config.CAN_OBSTACLE_BYTEORDER.lower()
-        if byteorder not in ("big", "little"):
-            return None, None
+            try:
+                angle = float(parts[0])
+                distance = float(parts[1])
+            except ValueError:
+                continue
 
-        angle_raw = int.from_bytes(
-            msg.data[0:2],
-            byteorder=byteorder,
-            signed=bool(config.CAN_OBSTACLE_ANGLE_SIGNED),
-        )
-        distance_raw = int.from_bytes(
-            msg.data[2:4],
-            byteorder=byteorder,
-            signed=bool(config.CAN_OBSTACLE_DISTANCE_SIGNED),
-        )
+            if not np.isfinite(angle) or not np.isfinite(distance):
+                continue
 
-        angle = angle_raw * config.CAN_OBSTACLE_ANGLE_SCALE_DEG_PER_LSB
-        distance = distance_raw * config.CAN_OBSTACLE_DISTANCE_SCALE_M_PER_LSB
-        if distance < 0:
-            return None, None
+            objects.append((angle, distance))
 
-        return angle, distance
+        return objects
 
-    async def _can_listener(self):
-        bus = can.interface.Bus(
-            channel=config.CAN_CHANNEL,
-            bustype=config.CAN_BUSTYPE,
-            bitrate=config.CAN_BITRATE,
-        )
-        reader = can.AsyncBufferedReader()
-        notifier = can.Notifier(bus, [reader], loop=asyncio.get_running_loop())
-        try:
-            async for msg in reader:
-                # print(f"{msg.arbitration_id:X}: {msg.data}")  # temp
-                angle, distance = self._decode_obstacle_can(msg)
-                if angle is None or distance is None:
-                    continue  # ignore unrelated CAN traffic
+    async def _obstacle_listener(self):
+        while True:
+            try:
+                reader, writer = await serial_asyncio.open_serial_connection(
+                    url=config.OBSTACLE_PORT,
+                    baudrate=config.OBSTACLE_BAUDRATE,
+                    timeout=config.OBSTACLE_TIMEOUT,
+                )
+                print("Obstacle serial connection established.")
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                print(f"Warning: obstacle serial unavailable ({e}). Retrying in {config.OBSTACLE_RECONNECT_DELAY_S} seconds...")
+                await asyncio.sleep(config.OBSTACLE_RECONNECT_DELAY_S)
+                continue
 
-                if None in self.latest_gps.values():
-                    continue  # no GPS position yet, skip
+            try:
+                while True:
+                    raw_line = await reader.readline()
+                    if not raw_line:
+                        raise ConnectionError("obstacle serial stream closed")
 
-                object_direction = self.latest_gps['heading'] + angle # type: ignore
-                d_north_m = distance * np.cos(np.radians(object_direction))
-                d_east_m = distance * np.sin(np.radians(object_direction))
+                    line = raw_line.decode("ascii", errors="ignore").strip()
+                    if not line:
+                        continue
 
-                # Convert local meter offsets to latitude/longitude deltas.
-                lat0 = self.latest_gps['latitude']
-                lon0 = self.latest_gps['longitude']
-                lat = lat0 + (d_north_m / config.METERS_PER_DEGREE_LAT) # type: ignore
+                    objects = self._parse_obstacle_serial_line(line)
+                    if not objects:
+                        if config.OBSTACLE_SERIAL_DEBUG:
+                            print(f"Obstacle serial parse skipped: {line}")
+                        continue
 
-                meters_per_degree_lon = config.METERS_PER_DEGREE_LAT * np.cos(np.radians(lat0)) # type: ignore
-                if abs(meters_per_degree_lon) < 1e-6:
-                    continue
-                lon = lon0 + (d_east_m / meters_per_degree_lon) # type: ignore
+                    if None in self.latest_gps.values():
+                        continue  # no GPS position yet, skip
 
-                new_row = pd.DataFrame([{
-                    'id': self.camera_id,
-                    'category': 'camera',
-                    'latitude': lat,
-                    'longitude': lon
-                }])
-                async with self._csv_lock:
-                    await asyncio.to_thread(
-                        new_row.to_csv,
-                        self.run_dir / 'points.csv',
-                        mode='a', header=False, index=False
-                    )
-                self.camera_id += 1
-        finally:
-            notifier.stop()
-            bus.shutdown()
+                    lat0 = self.latest_gps['latitude']
+                    lon0 = self.latest_gps['longitude']
+                    heading = self.latest_gps['heading']
+                    meters_per_degree_lon = config.METERS_PER_DEGREE_LAT * np.cos(np.radians(lat0)) # type: ignore
+                    if abs(meters_per_degree_lon) < 1e-6:
+                        continue
+
+                    rows = []
+                    for angle, distance in objects:
+                        object_direction = heading + angle # type: ignore
+                        d_north_m = distance * np.cos(np.radians(object_direction))
+                        d_east_m = distance * np.sin(np.radians(object_direction))
+
+                        # Convert local meter offsets to latitude/longitude deltas.
+                        lat = lat0 + (d_north_m / config.METERS_PER_DEGREE_LAT) # type: ignore
+                        lon = lon0 + (d_east_m / meters_per_degree_lon) # type: ignore
+                        rows.append({
+                            'id': self.camera_id,
+                            'category': 'camera',
+                            'latitude': lat,
+                            'longitude': lon
+                        })
+                        self.camera_id += 1
+
+                    if not rows:
+                        continue
+
+                    new_row = pd.DataFrame(rows)
+                    async with self.csv_lock:
+                        await asyncio.to_thread(
+                            new_row.to_csv,
+                            self.run_dir / 'points.csv',
+                            mode='a', header=False, index=False
+                        )
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                print(f"Obstacle serial disconnected: {e}")
+            finally:
+                writer.close()
+                try:
+                    await writer.wait_closed()
+                except Exception:
+                    pass
+
+            await asyncio.sleep(config.OBSTACLE_RECONNECT_DELAY_S)
 
     async def _setup_um982(self, writer):
         """Sends initial configuration to UM982 via the serial writer."""
@@ -215,7 +242,7 @@ class DataCollector:
                         'longitude': self.latest_gps['longitude'],
                         'heading': self.latest_gps['heading'],
                     }])
-                    async with self._csv_lock:
+                    async with self.csv_lock:
                          await asyncio.to_thread(
                             new_row.to_csv,
                             self.run_dir / 'points.csv',
@@ -247,7 +274,7 @@ class DataCollector:
             return self.latest_gga_raw
 
         tasks = [
-            asyncio.create_task(self._can_listener()),
+            asyncio.create_task(self._obstacle_listener()),
             asyncio.create_task(self._gps_listener()),
             asyncio.create_task(ntrip_client.run_ntrip_client(self.rtcm_queue, get_gga)),
         ]
