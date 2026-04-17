@@ -23,16 +23,27 @@ ESP_SERIAL_PORT = '/dev/ttyUSB0'  # Adjust as needed for your system
 ESP_BAUDRATE = 115200
 ESP_TIMEOUT = 0.1  # seconds
 
-# Obstacle input serial configuration
-# Expected line format:
-#   "<angle_deg>,<distance_m>" or "<angle_deg>,<distance_m>;<angle_deg>,<distance_m>;..."
-OBSTACLE_PORT = '/dev/ttyUSB1'
-OBSTACLE_BAUDRATE = 115200
-OBSTACLE_TIMEOUT = 0.1
+# Obstacle input over Ethernet (TCP)
+# The control Pi connects as a TCP client to the object-detection Pi.
+#
+# Message framing:
+# - One UTF-8/ASCII line per update, newline-terminated ("\n").
+# - Empty lines are ignored.
+#
+# Payload format for each line:
+# - One object: "<angle_deg>,<distance_m>"
+# - Multiple objects: "<angle_deg>,<distance_m>;<angle_deg>,<distance_m>;..."
+#
+# Example lines:
+# - "-12.5,4.2\n"
+# - "-10,3.0;5,2.1;21.5,6.8\n"
+OBSTACLE_TCP_HOST = '192.168.50.2'
+OBSTACLE_TCP_PORT = 9000
+OBSTACLE_TCP_READ_TIMEOUT_S = 1.0
 OBSTACLE_RECONNECT_DELAY_S = 2.0
 OBSTACLE_VALUE_SEPARATOR = ','
 OBSTACLE_PAIR_SEPARATOR = ';'
-OBSTACLE_SERIAL_DEBUG = False
+OBSTACLE_INPUT_DEBUG = False
 
 # GPS
 GPS_PORT = '/dev/ttyAMA0'

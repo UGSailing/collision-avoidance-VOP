@@ -23,8 +23,8 @@ class DataCollector:
         self.latest_gga_raw = None # For NTRIP uplinks
         self.rtcm_queue = asyncio.Queue(maxsize=100) # RTCM chunks for the GPS
 
-    def _parse_obstacle_serial_line(self, line: str):
-        """Parses serial obstacle data into (angle_deg, distance_m) tuples."""
+    def _parse_obstacle_line(self, line: str):
+        """Parses obstacle payload into (angle_deg, distance_m) tuples."""
         pair_sep = str(config.OBSTACLE_PAIR_SEPARATOR)
         val_sep = str(config.OBSTACLE_VALUE_SEPARATOR)
         objects = []
@@ -53,34 +53,42 @@ class DataCollector:
 
     async def _obstacle_listener(self):
         while True:
+            writer = None
             try:
-                reader, writer = await serial_asyncio.open_serial_connection(
-                    url=config.OBSTACLE_PORT,
-                    baudrate=config.OBSTACLE_BAUDRATE,
-                    timeout=config.OBSTACLE_TIMEOUT,
+                reader, writer = await asyncio.open_connection(
+                    host=config.OBSTACLE_TCP_HOST,
+                    port=config.OBSTACLE_TCP_PORT,
                 )
-                print("Obstacle serial connection established.")
+                print(f"Obstacle TCP connection established to {config.OBSTACLE_TCP_HOST}:{config.OBSTACLE_TCP_PORT}.")
             except asyncio.CancelledError:
                 raise
             except Exception as e:
-                print(f"Warning: obstacle serial unavailable ({e}). Retrying in {config.OBSTACLE_RECONNECT_DELAY_S} seconds...")
+                print(f"Warning: obstacle TCP unavailable ({e}). Retrying in {config.OBSTACLE_RECONNECT_DELAY_S} seconds...")
                 await asyncio.sleep(config.OBSTACLE_RECONNECT_DELAY_S)
                 continue
 
             try:
                 while True:
-                    raw_line = await reader.readline()
+                    try:
+                        raw_line = await asyncio.wait_for(
+                            reader.readline(),
+                            timeout=config.OBSTACLE_TCP_READ_TIMEOUT_S,
+                        )
+                    except asyncio.TimeoutError:
+                        # No packet in this interval; keep connection open.
+                        continue
+
                     if not raw_line:
-                        raise ConnectionError("obstacle serial stream closed")
+                        raise ConnectionError("obstacle TCP stream closed")
 
                     line = raw_line.decode("ascii", errors="ignore").strip()
                     if not line:
                         continue
 
-                    objects = self._parse_obstacle_serial_line(line)
+                    objects = self._parse_obstacle_line(line)
                     if not objects:
-                        if config.OBSTACLE_SERIAL_DEBUG:
-                            print(f"Obstacle serial parse skipped: {line}")
+                        if config.OBSTACLE_INPUT_DEBUG:
+                            print(f"Obstacle input parse skipped: {line}")
                         continue
 
                     if None in self.latest_gps.values():
@@ -123,13 +131,14 @@ class DataCollector:
             except asyncio.CancelledError:
                 raise
             except Exception as e:
-                print(f"Obstacle serial disconnected: {e}")
+                print(f"Obstacle TCP disconnected: {e}")
             finally:
-                writer.close()
-                try:
-                    await writer.wait_closed()
-                except Exception:
-                    pass
+                if writer is not None:
+                    writer.close()
+                    try:
+                        await writer.wait_closed()
+                    except Exception:
+                        pass
 
             await asyncio.sleep(config.OBSTACLE_RECONNECT_DELAY_S)
 
