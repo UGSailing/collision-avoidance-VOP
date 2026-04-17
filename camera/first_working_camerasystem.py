@@ -15,11 +15,13 @@
 """Run rectified Hailo duck detection with mono distance and azimuth logging."""
 
 import argparse
+import atexit
 import csv
 import importlib
 import json
 import math
 import os
+import socket
 import subprocess
 import sys
 import time
@@ -31,7 +33,18 @@ import cv2
 import numpy as np
 import yaml
 
-from config import USB_DEVICE
+from config import (
+    OBSTACLE_OUTPUT_DEBUG,
+    OBSTACLE_PAIR_SEPARATOR,
+    OBSTACLE_TCP_BACKLOG,
+    OBSTACLE_TCP_BIND_HOST,
+    OBSTACLE_TCP_ENABLED,
+    OBSTACLE_TCP_MAX_CLIENTS,
+    OBSTACLE_TCP_PORT,
+    OBSTACLE_TCP_SEND_TIMEOUT_S,
+    OBSTACLE_VALUE_SEPARATOR,
+    USB_DEVICE,
+)
 
 
 SCRIPT_PATH = Path(__file__).resolve()
@@ -50,6 +63,93 @@ class DetectionEstimate:
     bbox_xyxy: tuple[float, float, float, float]
     distance_m: float
     angle_deg: float
+
+
+class ObstacleTcpServer:
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        backlog: int,
+        max_clients: int,
+        send_timeout_s: float,
+        debug: bool,
+    ):
+        self.host = host
+        self.port = int(port)
+        self.backlog = max(1, int(backlog))
+        self.max_clients = max(1, int(max_clients))
+        self.send_timeout_s = max(0.01, float(send_timeout_s))
+        self.debug = bool(debug)
+        self._server: socket.socket | None = None
+        self._clients: list[socket.socket] = []
+
+    def start(self) -> None:
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server.bind((self.host, self.port))
+        server.listen(self.backlog)
+        server.setblocking(False)
+        self._server = server
+        print(f"Obstacle TCP server listening on {self.host}:{self.port}")
+
+    def _accept_new_clients(self) -> None:
+        if self._server is None:
+            return
+        while True:
+            try:
+                client, address = self._server.accept()
+            except BlockingIOError:
+                break
+            except OSError:
+                break
+
+            client.settimeout(self.send_timeout_s)
+            self._clients.append(client)
+            if self.debug:
+                print(f"Obstacle TCP client connected: {address[0]}:{address[1]}")
+
+            if len(self._clients) > self.max_clients:
+                old_client = self._clients.pop(0)
+                try:
+                    old_client.close()
+                except OSError:
+                    pass
+
+    def send_line(self, line: str) -> None:
+        self._accept_new_clients()
+        if not self._clients:
+            return
+
+        payload = (line + "\n").encode("ascii", errors="ignore")
+        alive_clients: list[socket.socket] = []
+
+        for client in self._clients:
+            try:
+                client.sendall(payload)
+                alive_clients.append(client)
+            except OSError:
+                try:
+                    client.close()
+                except OSError:
+                    pass
+
+        self._clients = alive_clients
+
+    def close(self) -> None:
+        for client in self._clients:
+            try:
+                client.close()
+            except OSError:
+                pass
+        self._clients.clear()
+
+        if self._server is not None:
+            try:
+                self._server.close()
+            except OSError:
+                pass
+            self._server = None
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -617,10 +717,34 @@ def install_distance_logger(
     calib_image_size, camera_matrix, distortion = load_calib_yaml(calib_path)
     rectification_cache: dict[tuple[int, int], tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
     start_time = time.monotonic()
+
+    tcp_server = None
+    if OBSTACLE_TCP_ENABLED:
+        tcp_server = ObstacleTcpServer(
+            host=OBSTACLE_TCP_BIND_HOST,
+            port=OBSTACLE_TCP_PORT,
+            backlog=OBSTACLE_TCP_BACKLOG,
+            max_clients=OBSTACLE_TCP_MAX_CLIENTS,
+            send_timeout_s=OBSTACLE_TCP_SEND_TIMEOUT_S,
+            debug=OBSTACLE_OUTPUT_DEBUG,
+        )
+        tcp_server.start()
+
     ser = None
     if usb_device:
         import serial
         ser = serial.Serial(usb_device, 9600, timeout=1)
+
+    def close_outputs() -> None:
+        if tcp_server is not None:
+            tcp_server.close()
+        if ser is not None:
+            try:
+                ser.close()
+            except Exception:
+                pass
+
+    atexit.register(close_outputs)
 
     def patched_handler(
         original_frame, infer_results, labels, config_data, tracker=None, draw_trail=False
@@ -677,15 +801,43 @@ def install_distance_logger(
                 camera_name=camera_name,
                 estimates=estimates,
             )
+
+            obstacle_line = OBSTACLE_PAIR_SEPARATOR.join(
+                f"{estimate.angle_deg:.2f}{OBSTACLE_VALUE_SEPARATOR}{estimate.distance_m:.2f}"
+                for estimate in estimates
+            )
+
+            if tcp_server is not None:
+                tcp_server.send_line(obstacle_line)
+
             if ser:
-                for estimate in estimates:
-                    ser.write(f"{estimate.angle_deg:.2f},{estimate.distance_m:.2f};".encode())
+                ser.write((obstacle_line + "\n").encode("ascii", errors="ignore"))
+
+            if OBSTACLE_OUTPUT_DEBUG:
+                print(f"Obstacle payload: {obstacle_line}")
+
             if show_overlay:
                 draw_distance_overlay(frame_with_detections, estimates)
 
         return frame_with_detections
 
-    post_process_module.inference_result_handler = patched_handler
+    def wrapped_handler(
+        original_frame, infer_results, labels, config_data, tracker=None, draw_trail=False
+    ):
+        try:
+            return patched_handler(
+                original_frame,
+                infer_results,
+                labels,
+                config_data,
+                tracker=tracker,
+                draw_trail=draw_trail,
+            )
+        except Exception:
+            close_outputs()
+            raise
+
+    post_process_module.inference_result_handler = wrapped_handler
 
 
 def build_launcher_command(
