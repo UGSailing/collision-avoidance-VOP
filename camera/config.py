@@ -16,3 +16,6 @@ CAN_OBSTACLE_DISTANCE_SCALE_M_PER_LSB = 0.01
 
 # Grouped obstacle CAN payloads; each object uses CAN_OBSTACLE_DLC bytes.
 CAN_OBSTACLE_MAX_DLC = 8
+
+# USB output settings for detected objects.
+USB_DEVICE = '/dev/ttyUSB1'  # Set to None to disable USB output
