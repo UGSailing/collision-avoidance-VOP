@@ -1,8 +1,7 @@
-
 # CAN settings for camera -> control obstacle transmission.
 # Keep these values aligned with control/config.py.
-CAN_CHANNEL = 'can0'
-CAN_BUSTYPE = 'socketcan'
+CAN_CHANNEL = "can0"
+CAN_BUSTYPE = "socketcan"
 CAN_BITRATE = 1000000
 
 CAN_OBSTACLE_ID = 0x120
@@ -10,7 +9,7 @@ CAN_OBSTACLE_IS_EXTENDED_ID = False
 CAN_OBSTACLE_DLC = 4
 CAN_OBSTACLE_ANGLE_SIGNED = True
 CAN_OBSTACLE_DISTANCE_SIGNED = False
-CAN_OBSTACLE_BYTEORDER = 'big'
+CAN_OBSTACLE_BYTEORDER = "big"
 CAN_OBSTACLE_ANGLE_SCALE_DEG_PER_LSB = 0.1
 CAN_OBSTACLE_DISTANCE_SCALE_M_PER_LSB = 0.01
 
@@ -22,15 +21,15 @@ CAN_OBSTACLE_MAX_DLC = 8
 #   "<angle_deg>,<distance_m>" for one object
 #   "<angle_deg>,<distance_m>;<angle_deg>,<distance_m>;..." for multiple
 OBSTACLE_TCP_ENABLED = True
-OBSTACLE_TCP_BIND_HOST = '0.0.0.0'
+OBSTACLE_TCP_BIND_HOST = "0.0.0.0"
 OBSTACLE_TCP_PORT = 9000
 OBSTACLE_TCP_BACKLOG = 1
 OBSTACLE_TCP_MAX_CLIENTS = 1
 OBSTACLE_TCP_SEND_TIMEOUT_S = 0.2
 OBSTACLE_TCP_SEND_EMPTY_UPDATES = True
 
-OBSTACLE_VALUE_SEPARATOR = ','
-OBSTACLE_PAIR_SEPARATOR = ';'
+OBSTACLE_VALUE_SEPARATOR = ","
+OBSTACLE_PAIR_SEPARATOR = ";"
 OBSTACLE_OUTPUT_DEBUG = False
 
 # Optional USB serial obstacle output (legacy).
