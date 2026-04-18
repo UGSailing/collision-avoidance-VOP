@@ -12,11 +12,17 @@ export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-offscreen}"
 export DISPLAY="${DISPLAY:-}"
 
 if [ -f "$HAILO_APPS_ROOT/setup_env.sh" ]; then
+	# Hailo's setup script checks shell vars that can be unset under `set -u`.
+	set +u
 	# shellcheck disable=SC1090
 	source "$HAILO_APPS_ROOT/setup_env.sh"
+	set -u
 elif [ -f "$HAILO_APPS_ROOT/hailo_apps/setup_env.sh" ]; then
+	# Hailo's setup script checks shell vars that can be unset under `set -u`.
+	set +u
 	# shellcheck disable=SC1090
 	source "$HAILO_APPS_ROOT/hailo_apps/setup_env.sh"
+	set -u
 else
 	echo "Error: could not find Hailo setup_env.sh under $HAILO_APPS_ROOT" >&2
 	exit 1
