@@ -9,7 +9,7 @@ What this script does:
 5. Stores rectified recordings per minute in control/boatcam_recordings.
 """
 
-# To run: 
+# To run:
 #python detectionsystem.py --input rpi --object-height 0.23
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import atexit
 import importlib
+import os
 import socket
 import sys
 from datetime import datetime
@@ -504,7 +505,13 @@ def run() -> int:
     os_module = importlib.import_module(
         "hailo_apps.python.standalone_apps.object_detection.object_detection"
     )
-    os_module.main()
+    original_cwd = Path.cwd()
+    try:
+        # Hailo's app loads config.json relative to its own folder.
+        os.chdir(object_detection_dir)
+        os_module.main()
+    finally:
+        os.chdir(original_cwd)
     return 0
 
 
