@@ -709,27 +709,36 @@ def patch_hailo_infer_wait_timeout(
     if timeout_ms <= 0:
         return
 
-    infer_fn = getattr(object_detection_module, "infer", None)
-    if not callable(infer_fn):
-        print("Warning: could not locate infer() to patch Hailo wait timeout.")
-        return
-
-    code_obj = getattr(infer_fn, "__code__", None)
-    if code_obj is None:
-        print("Warning: infer() has no code object; timeout patch skipped.")
-        return
-
     try:
-        patched_code, changed = _replace_code_constant(
-            code_obj,
-            old_value=10000,
-            new_value=int(timeout_ms),
-        )
-        if changed:
-            infer_fn.__code__ = patched_code
-            print(f"Patched Hailo infer wait timeout to {int(timeout_ms)} ms")
+        changed_any = False
+        patched_functions = []
+        timeout_value = int(timeout_ms)
+
+        for value in object_detection_module.__dict__.values():
+            if not callable(value):
+                continue
+
+            code_obj = getattr(value, "__code__", None)
+            if code_obj is None:
+                continue
+
+            patched_code, changed = _replace_code_constant(
+                code_obj,
+                old_value=10000,
+                new_value=timeout_value,
+            )
+            if changed:
+                value.__code__ = patched_code
+                patched_functions.append(getattr(value, "__name__", "<unknown>"))
+                changed_any = True
+
+        if changed_any:
+            print(
+                "Patched Hailo wait timeout to "
+                f"{timeout_value} ms in: {', '.join(patched_functions)}"
+            )
         else:
-            print("Warning: did not find default 10000ms wait constant in infer().")
+            print("Warning: did not find any 10000ms wait constants to patch.")
     except Exception as exc:
         print(f"Warning: failed to patch Hailo wait timeout: {exc}")
 
