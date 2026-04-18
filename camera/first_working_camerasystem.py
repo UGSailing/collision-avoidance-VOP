@@ -53,7 +53,6 @@ CAMERA_DIR = SCRIPT_PATH.parent
 DEFAULT_HAILO_APPS_ROOT = Path.home() / "Documents" / "hailo-apps"
 DEFAULT_DUCK_HEF = CAMERA_DIR / "yolo_models" / "duck.hef"
 DEFAULT_CALIB = CAMERA_DIR / "calibration_yamls" / "camera_calibration.yaml"
-SOURCE_LABEL = "person"
 TARGET_LABEL = "duck"
 
 
@@ -310,63 +309,6 @@ def scale_camera_matrix(
     return scaled
 
 
-def get_rectification_state(
-    frame_size: tuple[int, int],
-    calib_image_size: tuple[int, int],
-    camera_matrix: np.ndarray,
-    distortion: np.ndarray,
-    cache: dict[tuple[int, int], tuple[np.ndarray, np.ndarray, np.ndarray]],
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    if frame_size not in cache:
-        scaled_camera_matrix = scale_camera_matrix(
-            camera_matrix=camera_matrix,
-            calib_image_size=calib_image_size,
-            frame_size=frame_size,
-        )
-        width, height = frame_size
-        rectified_camera_matrix, _ = cv2.getOptimalNewCameraMatrix(
-            scaled_camera_matrix,
-            distortion,
-            (width, height),
-            0.0,
-            (width, height),
-        )
-        map1, map2 = cv2.initUndistortRectifyMap(
-            scaled_camera_matrix,
-            distortion,
-            R=None,
-            newCameraMatrix=rectified_camera_matrix,
-            size=(width, height),
-            m1type=cv2.CV_16SC2,
-        )
-        cache[frame_size] = (rectified_camera_matrix, map1, map2)
-    return cache[frame_size]
-
-
-def rectify_rgb_frame(
-    frame_rgb: np.ndarray,
-    calib_image_size: tuple[int, int],
-    camera_matrix: np.ndarray,
-    distortion: np.ndarray,
-    cache: dict[tuple[int, int], tuple[np.ndarray, np.ndarray, np.ndarray]],
-) -> np.ndarray:
-    frame_h, frame_w = frame_rgb.shape[:2]
-    _, map1, map2 = get_rectification_state(
-        frame_size=(frame_w, frame_h),
-        calib_image_size=calib_image_size,
-        camera_matrix=camera_matrix,
-        distortion=distortion,
-        cache=cache,
-    )
-    return cv2.remap(
-        frame_rgb,
-        map1,
-        map2,
-        interpolation=cv2.INTER_LINEAR,
-        borderMode=cv2.BORDER_CONSTANT,
-    )
-
-
 def estimate_from_rectified_bbox(
     bbox_xyxy: tuple[float, float, float, float],
     object_height_m: float,
@@ -423,7 +365,6 @@ def write_mission_log(
         f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | INFO | Network: {network}",
         f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | INFO | Input: {input_source}",
         f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | INFO | Target label: {TARGET_LABEL}",
-        f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | INFO | Source label override: {SOURCE_LABEL} -> {TARGET_LABEL}",
         f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | INFO | Object height (m): {object_height}",
         f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | INFO | CSV path: {csv_path}",
     ]
@@ -524,196 +465,6 @@ def draw_distance_overlay(
         )
 
 
-def rename_label(label: str) -> str:
-    return TARGET_LABEL if str(label).lower() == SOURCE_LABEL else str(label)
-
-
-def install_label_override_hooks(hailo_apps_root: Path) -> None:
-    sys.path.insert(0, str(hailo_apps_root))
-    toolbox_module = importlib.import_module("hailo_apps.python.core.common.toolbox")
-    post_process_module = importlib.import_module(
-        "hailo_apps.python.standalone_apps.object_detection.object_detection_post_process"
-    )
-
-    original_get_labels = toolbox_module.get_labels
-    original_draw_detections = post_process_module.draw_detections
-
-    def patched_get_labels(labels_path):
-        labels = original_get_labels(labels_path)
-        patched_labels = [rename_label(label) for label in labels]
-        if not patched_labels:
-            return [TARGET_LABEL]
-        if len(patched_labels) == 1 and patched_labels[0].lower() != TARGET_LABEL:
-            patched_labels[0] = TARGET_LABEL
-        return patched_labels
-
-    def patched_draw_detections(
-        detections, img_out, labels, tracker=None, draw_trail=False
-    ):
-        patched_labels = [rename_label(label) for label in labels]
-        return original_draw_detections(
-            detections,
-            img_out,
-            patched_labels,
-            tracker=tracker,
-            draw_trail=draw_trail,
-        )
-
-    setattr(toolbox_module, "get_labels", patched_get_labels)
-    setattr(post_process_module, "draw_detections", patched_draw_detections)
-
-
-def install_rectified_input_hooks(hailo_apps_root: Path, calib_path: Path) -> None:
-    sys.path.insert(0, str(hailo_apps_root))
-    toolbox_module = importlib.import_module("hailo_apps.python.core.common.toolbox")
-    calib_image_size, camera_matrix, distortion = load_calib_yaml(calib_path)
-    map_cache: dict[tuple[int, int], tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
-    original_init_input_source = toolbox_module.init_input_source
-
-    def rectify_for_pipeline(frame_rgb: np.ndarray) -> np.ndarray:
-        return rectify_rgb_frame(
-            frame_rgb=frame_rgb,
-            calib_image_size=calib_image_size,
-            camera_matrix=camera_matrix,
-            distortion=distortion,
-            cache=map_cache,
-        )
-
-    def patched_preprocess_from_cap(
-        cap,
-        batch_size,
-        input_queue,
-        width,
-        height,
-        mode,
-        preprocess_fn,
-        target_fps=None,
-        stop_event=None,
-    ):
-        def should_stop() -> bool:
-            return stop_event is not None and stop_event.is_set()
-
-        target_fps_value = float(target_fps) if target_fps is not None else None
-
-        if mode == toolbox_module.CapProcessingMode.CAMERA_FRAME_DROP:
-            if target_fps_value is None or target_fps_value <= 0:
-                raise ValueError("CAMERA_FRAME_DROP requires a positive target_fps")
-            target_fps_nonnull = target_fps_value
-        else:
-            target_fps_nonnull = 1.0
-
-        next_keep_ts = toolbox_module.time.monotonic()
-        keep_period = (
-            1.0 / target_fps_nonnull
-            if mode == toolbox_module.CapProcessingMode.CAMERA_FRAME_DROP
-            else None
-        )
-        video_t0_ms = None
-        wall_t0 = None
-        frames = []
-        processed = []
-
-        while not should_stop():
-            ret, frame_bgr = cap.read()
-            if not ret:
-                break
-
-            if mode == toolbox_module.CapProcessingMode.VIDEO_PACE:
-                pos_ms = float(cap.get(cv2.CAP_PROP_POS_MSEC) or 0.0)
-                if video_t0_ms is None:
-                    video_t0_ms = pos_ms
-                    wall_t0 = toolbox_module.time.monotonic()
-                assert wall_t0 is not None
-                desired = wall_t0 + (pos_ms - video_t0_ms) / 1000.0
-                now = toolbox_module.time.monotonic()
-                if now < desired:
-                    toolbox_module.time.sleep(desired - now)
-
-            if mode == toolbox_module.CapProcessingMode.CAMERA_FRAME_DROP:
-                now = toolbox_module.time.monotonic()
-                if now < next_keep_ts:
-                    continue
-                next_keep_ts += keep_period
-
-            frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-            rectified_rgb = rectify_for_pipeline(frame_rgb)
-            frames.append(rectified_rgb)
-            processed.append(preprocess_fn(rectified_rgb, width, height))
-
-            if len(frames) >= batch_size:
-                input_queue.put((frames, processed))
-                frames, processed = [], []
-
-        if frames and not should_stop():
-            input_queue.put((frames, processed))
-        input_queue.put(None)
-
-    def patched_preprocess_images(
-        images, batch_size, input_queue, width, height, preprocess_fn
-    ):
-        for batch in toolbox_module.divide_list_to_batches(images, batch_size):
-            rectified_batch = [rectify_for_pipeline(image) for image in batch]
-            input_queue.put(
-                (
-                    rectified_batch,
-                    [preprocess_fn(image, width, height) for image in rectified_batch],
-                )
-            )
-
-    def patched_open_rpi_camera():
-        picam2 = None
-        try:
-            from picamera2 import Picamera2  # type: ignore[import-not-found]
-        except Exception as exc:
-            toolbox_module.logger.error(f"Picamera2 not available: {exc}")
-            return None
-
-        try:
-            picam2 = Picamera2()
-            main = {"size": calib_image_size, "format": "RGB888"}
-            config = picam2.create_video_configuration(
-                main=main,
-                controls={"FrameRate": 30},
-            )
-            picam2.configure(config)
-            picam2.start()
-            return toolbox_module.PiCamera2CaptureAdapter(picam2)
-        except Exception as exc:
-            toolbox_module.logger.error(f"Failed to open RPi camera: {exc}")
-            if picam2 is not None:
-                try:
-                    picam2.stop()
-                except Exception:
-                    pass
-                try:
-                    picam2.close()
-                except Exception:
-                    pass
-            return None
-
-    def patched_init_input_source(input_src: str, batch_size: int, resolution):
-        src = input_src.strip()
-        if src == "rpi":
-            if not toolbox_module.is_raspberry_pi():
-                toolbox_module.logger.error(
-                    "RPi camera requested, but this is not a Raspberry Pi system."
-                )
-                sys.exit(1)
-            cap = patched_open_rpi_camera()
-            if cap is None:
-                sys.exit(1)
-            toolbox_module.logger.info(
-                f"Using Raspberry Pi camera at {calib_image_size[0]}x{calib_image_size[1]} with rectification"
-            )
-            return cap, None, "rpi"
-        return original_init_input_source(input_src, batch_size, resolution)
-
-    setattr(toolbox_module, "preprocess_from_cap", patched_preprocess_from_cap)
-    setattr(toolbox_module, "preprocess_images", patched_preprocess_images)
-    setattr(toolbox_module, "open_rpi_camera", patched_open_rpi_camera)
-    setattr(toolbox_module, "init_input_source", patched_init_input_source)
-
-
 def install_headless_cv2_hooks() -> None:
     def _noop(*_args, **_kwargs):
         return None
@@ -775,10 +526,7 @@ def install_distance_logger(
     )
     original_handler = post_process_module.inference_result_handler
     extract_detections = post_process_module.extract_detections
-    calib_image_size, camera_matrix, distortion = load_calib_yaml(calib_path)
-    rectification_cache: dict[
-        tuple[int, int], tuple[np.ndarray, np.ndarray, np.ndarray]
-    ] = {}
+    calib_image_size, camera_matrix, _ = load_calib_yaml(calib_path)
     start_time = time.monotonic()
 
     tcp_server = None
@@ -823,17 +571,15 @@ def install_distance_logger(
         boxes = detections["detection_boxes"]
         scores = detections["detection_scores"]
         frame_h, frame_w = original_frame.shape[:2]
-        rectified_camera_matrix, _, _ = get_rectification_state(
-            frame_size=(frame_w, frame_h),
+        scaled_camera_matrix = scale_camera_matrix(
             calib_image_size=calib_image_size,
             camera_matrix=camera_matrix,
-            distortion=distortion,
-            cache=rectification_cache,
+            frame_size=(frame_w, frame_h),
         )
 
         estimates: list[DetectionEstimate] = []
         for class_id, bbox_xyxy, score in zip(classes, boxes, scores):
-            label = rename_label(str(labels[class_id]))
+            label = str(labels[class_id])
             if label.lower() != TARGET_LABEL:
                 continue
             try:
@@ -846,7 +592,7 @@ def install_distance_logger(
                             float(bbox_xyxy[3]),
                         ),
                         object_height_m=object_height,
-                        rectified_camera_matrix=rectified_camera_matrix,
+                        rectified_camera_matrix=scaled_camera_matrix,
                         label=label,
                         confidence=float(score),
                     )
@@ -854,11 +600,10 @@ def install_distance_logger(
             except ValueError:
                 continue
 
-        patched_labels = [rename_label(label) for label in labels]
         frame_with_detections = original_handler(
             original_frame,
             infer_results,
-            patched_labels,
+            labels,
             config_data,
             tracker=tracker,
             draw_trail=draw_trail,
@@ -989,8 +734,6 @@ def run_internal_hailo(args: argparse.Namespace) -> int:
 
     os.chdir(object_detection_dir)
     install_headless_cv2_hooks()
-    install_label_override_hooks(hailo_root)
-    install_rectified_input_hooks(hailo_root, calib_path)
     install_distance_logger(
         hailo_apps_root=hailo_root,
         jsonl_path=jsonl_path,
@@ -1014,7 +757,7 @@ def run_internal_hailo(args: argparse.Namespace) -> int:
         "--output-dir",
         str(camera_output_dir),
         "--camera-resolution",
-        "fhd",
+        "hd",
     ]
     if args.save_output:
         sys.argv.append("--save-output")
