@@ -3,7 +3,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
+CAMERA_PROJECT_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 HAILO_APPS_ROOT_DEFAULT="$HOME/Documents/hailo-apps"
 HAILO_APPS_ROOT="${HAILO_APPS_ROOT:-$HAILO_APPS_ROOT_DEFAULT}"
 SETUP_ENV_SCRIPT=""
@@ -34,4 +34,4 @@ set -u
 
 popd >/dev/null
 
-exec python3 "$PROJECT_ROOT/camera/first_working_camerasystem.py" "$@"
+exec python3 "$CAMERA_PROJECT_ROOT/camera/first_working_camerasystem.py" "$@"
