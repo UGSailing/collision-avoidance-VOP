@@ -201,6 +201,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Disable the live distance/angle overlay on the Hailo output window.",
     )
     parser.add_argument(
+        "--hailo-wait-timeout-ms",
+        type=int,
+        default=10000,
+        help="Timeout in ms for each Hailo infer job wait (default: 10000).",
+    )
+    parser.add_argument(
         "--internal-launch-hailo",
         action="store_true",
         help=argparse.SUPPRESS,
@@ -668,6 +674,66 @@ def install_distance_logger(
     setattr(post_process_module, "inference_result_handler", wrapped_handler)
 
 
+def _replace_code_constant(
+    code_obj,
+    old_value: int,
+    new_value: int,
+) -> tuple[object, bool]:
+    changed = False
+    new_consts = []
+    for const in code_obj.co_consts:
+        if isinstance(const, type(code_obj)):
+            nested_code, nested_changed = _replace_code_constant(
+                const,
+                old_value,
+                new_value,
+            )
+            new_consts.append(nested_code)
+            changed = changed or nested_changed
+        elif const == old_value:
+            new_consts.append(new_value)
+            changed = True
+        else:
+            new_consts.append(const)
+
+    if not changed:
+        return code_obj, False
+
+    return code_obj.replace(co_consts=tuple(new_consts)), True
+
+
+def patch_hailo_infer_wait_timeout(
+    object_detection_module,
+    timeout_ms: int,
+) -> None:
+    if timeout_ms <= 0:
+        return
+
+    infer_fn = getattr(object_detection_module, "infer", None)
+    if not callable(infer_fn):
+        print("Warning: could not locate infer() to patch Hailo wait timeout.")
+        return
+
+    code_obj = getattr(infer_fn, "__code__", None)
+    if code_obj is None:
+        print("Warning: infer() has no code object; timeout patch skipped.")
+        return
+
+    try:
+        patched_code, changed = _replace_code_constant(
+            code_obj,
+            old_value=10000,
+            new_value=int(timeout_ms),
+        )
+        if changed:
+            infer_fn.__code__ = patched_code
+            print(f"Patched Hailo infer wait timeout to {int(timeout_ms)} ms")
+        else:
+            print("Warning: did not find default 10000ms wait constant in infer().")
+    except Exception as exc:
+        print(f"Warning: failed to patch Hailo wait timeout: {exc}")
+
+
 def build_launcher_command(
     script_path: Path,
     args: argparse.Namespace,
@@ -690,6 +756,8 @@ def build_launcher_command(
         str(args.object_height),
         "--csv-name",
         args.csv_name,
+        "--hailo-wait-timeout-ms",
+        str(int(args.hailo_wait_timeout_ms)),
         "--recording-run-dir",
         str(run_dir),
         "--camera-name",
@@ -747,6 +815,10 @@ def run_internal_hailo(args: argparse.Namespace) -> int:
 
     object_detection_module = importlib.import_module(
         "hailo_apps.python.standalone_apps.object_detection.object_detection"
+    )
+    patch_hailo_infer_wait_timeout(
+        object_detection_module=object_detection_module,
+        timeout_ms=int(args.hailo_wait_timeout_ms),
     )
     sys.argv = [
         str(object_detection_script),
