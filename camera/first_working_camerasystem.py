@@ -42,6 +42,7 @@ from config import (
     OBSTACLE_TCP_MAX_CLIENTS,
     OBSTACLE_TCP_PORT,
     OBSTACLE_TCP_SEND_TIMEOUT_S,
+    OBSTACLE_TCP_SEND_EMPTY_UPDATES,
     OBSTACLE_VALUE_SEPARATOR,
     USB_DEVICE,
 )
@@ -285,7 +286,8 @@ def detect_camera_name(input_source: str) -> str:
 def load_calib_yaml(path: Path) -> tuple[tuple[int, int], np.ndarray, np.ndarray]:
     with path.open("r", encoding="utf-8") as handle:
         data = yaml.safe_load(handle)
-    image_size = tuple(int(value) for value in data["image_size"])
+    image_size_raw = data["image_size"]
+    image_size = (int(image_size_raw[0]), int(image_size_raw[1]))
     camera_matrix = np.array(data["K"], dtype=np.float64)
     distortion = np.array(data["dist"], dtype=np.float64).reshape(-1, 1)
     return image_size, camera_matrix, distortion
@@ -557,8 +559,8 @@ def install_label_override_hooks(hailo_apps_root: Path) -> None:
             draw_trail=draw_trail,
         )
 
-    toolbox_module.get_labels = patched_get_labels
-    post_process_module.draw_detections = patched_draw_detections
+    setattr(toolbox_module, "get_labels", patched_get_labels)
+    setattr(post_process_module, "draw_detections", patched_draw_detections)
 
 
 def install_rectified_input_hooks(hailo_apps_root: Path, calib_path: Path) -> None:
@@ -591,13 +593,18 @@ def install_rectified_input_hooks(hailo_apps_root: Path, calib_path: Path) -> No
         def should_stop() -> bool:
             return stop_event is not None and stop_event.is_set()
 
+        target_fps_value = float(target_fps) if target_fps is not None else None
+
         if mode == toolbox_module.CapProcessingMode.CAMERA_FRAME_DROP:
-            if not target_fps or target_fps <= 0:
+            if target_fps_value is None or target_fps_value <= 0:
                 raise ValueError("CAMERA_FRAME_DROP requires a positive target_fps")
+            target_fps_nonnull = target_fps_value
+        else:
+            target_fps_nonnull = 1.0
 
         next_keep_ts = toolbox_module.time.monotonic()
         keep_period = (
-            1.0 / float(target_fps)
+            1.0 / target_fps_nonnull
             if mode == toolbox_module.CapProcessingMode.CAMERA_FRAME_DROP
             else None
         )
@@ -616,6 +623,7 @@ def install_rectified_input_hooks(hailo_apps_root: Path, calib_path: Path) -> No
                 if video_t0_ms is None:
                     video_t0_ms = pos_ms
                     wall_t0 = toolbox_module.time.monotonic()
+                assert wall_t0 is not None
                 desired = wall_t0 + (pos_ms - video_t0_ms) / 1000.0
                 now = toolbox_module.time.monotonic()
                 if now < desired:
@@ -655,7 +663,7 @@ def install_rectified_input_hooks(hailo_apps_root: Path, calib_path: Path) -> No
     def patched_open_rpi_camera():
         picam2 = None
         try:
-            from picamera2 import Picamera2
+            from picamera2 import Picamera2  # type: ignore[import-not-found]
         except Exception as exc:
             toolbox_module.logger.error(f"Picamera2 not available: {exc}")
             return None
@@ -700,10 +708,10 @@ def install_rectified_input_hooks(hailo_apps_root: Path, calib_path: Path) -> No
             return cap, None, "rpi"
         return original_init_input_source(input_src, batch_size, resolution)
 
-    toolbox_module.preprocess_from_cap = patched_preprocess_from_cap
-    toolbox_module.preprocess_images = patched_preprocess_images
-    toolbox_module.open_rpi_camera = patched_open_rpi_camera
-    toolbox_module.init_input_source = patched_init_input_source
+    setattr(toolbox_module, "preprocess_from_cap", patched_preprocess_from_cap)
+    setattr(toolbox_module, "preprocess_images", patched_preprocess_images)
+    setattr(toolbox_module, "open_rpi_camera", patched_open_rpi_camera)
+    setattr(toolbox_module, "init_input_source", patched_init_input_source)
 
 
 def install_headless_cv2_hooks() -> None:
@@ -713,12 +721,22 @@ def install_headless_cv2_hooks() -> None:
     def _waitkey_noop(*_args, **_kwargs):
         return -1
 
+    def _get_window_property_noop(*_args, **_kwargs):
+        return 1.0
+
     # Force headless behavior so no GUI backend is required on monitor-less systems.
     cv2.imshow = _noop
     cv2.namedWindow = _noop
     cv2.startWindowThread = _noop
     cv2.destroyWindow = _noop
     cv2.destroyAllWindows = _noop
+    cv2.resizeWindow = _noop
+    cv2.moveWindow = _noop
+    cv2.createTrackbar = _noop
+    cv2.setTrackbarPos = _noop
+    cv2.getTrackbarPos = _noop
+    cv2.setMouseCallback = _noop
+    cv2.setWindowProperty = _noop
     cv2.waitKey = _waitkey_noop
     cv2.pollKey = _waitkey_noop
 
@@ -726,7 +744,19 @@ def install_headless_cv2_hooks() -> None:
         cv2.waitKeyEx = _waitkey_noop
 
     if hasattr(cv2, "getWindowProperty"):
-        cv2.getWindowProperty = _waitkey_noop
+        cv2.getWindowProperty = _get_window_property_noop
+
+    try:
+        toolbox_module = importlib.import_module(
+            "hailo_apps.python.core.common.toolbox"
+        )
+
+        def _headless_visualize(*_args, **_kwargs):
+            return None
+
+        setattr(toolbox_module, "visualize", _headless_visualize)
+    except Exception:
+        pass
 
 
 def install_distance_logger(
@@ -765,7 +795,7 @@ def install_distance_logger(
 
     ser = None
     if usb_device:
-        import serial
+        import serial  # type: ignore[import-not-found]
 
         ser = serial.Serial(usb_device, 9600, timeout=1)
 
@@ -809,7 +839,12 @@ def install_distance_logger(
             try:
                 estimates.append(
                     estimate_from_rectified_bbox(
-                        bbox_xyxy=tuple(float(value) for value in bbox_xyxy),
+                        bbox_xyxy=(
+                            float(bbox_xyxy[0]),
+                            float(bbox_xyxy[1]),
+                            float(bbox_xyxy[2]),
+                            float(bbox_xyxy[3]),
+                        ),
                         object_height_m=object_height,
                         rectified_camera_matrix=rectified_camera_matrix,
                         label=label,
@@ -845,18 +880,22 @@ def install_distance_logger(
                 f"{estimate.angle_deg:.2f}{OBSTACLE_VALUE_SEPARATOR}{estimate.distance_m:.2f}"
                 for estimate in estimates
             )
+        elif OBSTACLE_TCP_SEND_EMPTY_UPDATES:
+            obstacle_line = ""
+        else:
+            obstacle_line = None
 
-            if tcp_server is not None:
-                tcp_server.send_line(obstacle_line)
+        if tcp_server is not None and obstacle_line is not None:
+            tcp_server.send_line(obstacle_line)
 
-            if ser:
-                ser.write((obstacle_line + "\n").encode("ascii", errors="ignore"))
+        if ser and obstacle_line is not None:
+            ser.write((obstacle_line + "\n").encode("ascii", errors="ignore"))
 
-            if OBSTACLE_OUTPUT_DEBUG:
-                print(f"Obstacle payload: {obstacle_line}")
+        if OBSTACLE_OUTPUT_DEBUG and obstacle_line is not None:
+            print(f"Obstacle payload: {obstacle_line}")
 
-            if show_overlay:
-                draw_distance_overlay(frame_with_detections, estimates)
+        if show_overlay and estimates:
+            draw_distance_overlay(frame_with_detections, estimates)
 
         return frame_with_detections
 
@@ -881,7 +920,7 @@ def install_distance_logger(
             close_outputs()
             raise
 
-    post_process_module.inference_result_handler = wrapped_handler
+    setattr(post_process_module, "inference_result_handler", wrapped_handler)
 
 
 def build_launcher_command(
