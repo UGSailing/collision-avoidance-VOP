@@ -1,13 +1,58 @@
 import pandas as pd
 import math
+import time
 import config
 import serial
+from collections.abc import Sequence
 from typing import TypeGuard, Union
+from pandas.errors import EmptyDataError
 
 class PathFollower:
     def __init__(self, run_dir):
         self.run_dir = run_dir
-        self.ser = serial.Serial(config.ESP_SERIAL_PORT, config.ESP_BAUDRATE, timeout=config.ESP_TIMEOUT)
+        self._autopilot_endpoints = self._resolve_autopilot_endpoints()
+        self._serial_by_endpoint = {}
+        self._last_connect_log_by_endpoint = {}
+        self._connect_autopilot_transports()
+
+    def _resolve_autopilot_endpoints(self) -> list[str]:
+        raw = getattr(config, "ESP_SERIAL_PORTS", None)
+        if isinstance(raw, Sequence) and not isinstance(raw, (str, bytes)):
+            endpoints = [str(item).strip() for item in raw if str(item).strip()]
+        else:
+            fallback = str(getattr(config, "ESP_SERIAL_PORT", "")).strip()
+            endpoints = [fallback] if fallback else []
+
+        # Preserve order, remove duplicates.
+        unique_endpoints = list(dict.fromkeys(endpoints))
+        if not unique_endpoints:
+            raise ValueError("No autopilot transport configured. Set ESP_SERIAL_PORT or ESP_SERIAL_PORTS in config.py")
+        return unique_endpoints
+
+    def _connect_autopilot_transport(self, endpoint: str) -> None:
+        if endpoint in self._serial_by_endpoint and self._serial_by_endpoint[endpoint] is not None:
+            return
+
+        try:
+            # serial_for_url supports regular serial devices and URL backends like socket://
+            serial_conn = serial.serial_for_url(
+                endpoint,
+                baudrate=config.ESP_BAUDRATE,
+                timeout=config.ESP_TIMEOUT,
+            )
+            self._serial_by_endpoint[endpoint] = serial_conn
+            print(f"Connected autopilot transport on {endpoint}")
+        except Exception as exc:
+            self._serial_by_endpoint[endpoint] = None
+            now = time.monotonic()
+            last_log = self._last_connect_log_by_endpoint.get(endpoint, 0.0)
+            if now - last_log > 2.0:
+                print(f"Autopilot transport unavailable ({endpoint}): {exc}")
+                self._last_connect_log_by_endpoint[endpoint] = now
+
+    def _connect_autopilot_transports(self) -> None:
+        for endpoint in self._autopilot_endpoints:
+            self._connect_autopilot_transport(endpoint)
 
     def _is_numeric(self, value: object) -> TypeGuard[float | int]:
         return isinstance(value, (int, float))
@@ -158,7 +203,11 @@ class PathFollower:
             if not path_file.exists():
                 self._send_autopilot_command(0, 0)
                 return
-            path_df = pd.read_csv(path_file)
+            try:
+                path_df = pd.read_csv(path_file)
+            except EmptyDataError:
+                self._send_autopilot_command(0, 0)
+                return
             if len(path_df) < 2:
                 # We are at the destination (or no path exists)
                 self._send_autopilot_command(0, 0)
@@ -195,4 +244,17 @@ class PathFollower:
 
     def _send_autopilot_command(self, target_angle: Union[int, float], target_thrust: Union[int, float]) -> None:
         msg = self._build_autopilot_message(target_angle, target_thrust)
-        self.ser.write(msg.encode("ascii"))
+        wire = msg.encode("ascii")
+
+        for endpoint in self._autopilot_endpoints:
+            if self._serial_by_endpoint.get(endpoint) is None:
+                self._connect_autopilot_transport(endpoint)
+
+            serial_conn = self._serial_by_endpoint.get(endpoint)
+            if serial_conn is None:
+                continue
+
+            try:
+                serial_conn.write(wire)
+            except Exception:
+                self._serial_by_endpoint[endpoint] = None

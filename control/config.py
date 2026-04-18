@@ -23,6 +23,17 @@ ESP_SERIAL_PORT = '/dev/ttyUSB0'  # Adjust as needed for your system
 ESP_BAUDRATE = 115200
 ESP_TIMEOUT = 0.1  # seconds
 
+# Optional autopilot output fanout. Path execution will send the same
+# "angle,thrust\n" command to each configured endpoint.
+# Keep only ESP_SERIAL_PORT for normal operation, or add a socket endpoint
+# to feed the indoor simulator simultaneously.
+# Example:
+ESP_SERIAL_PORTS = [
+    ESP_SERIAL_PORT,
+    'socket://127.0.0.1:8765',
+]
+# ESP_SERIAL_PORTS = [ESP_SERIAL_PORT]
+
 # Obstacle input over Ethernet (TCP)
 # The control Pi connects as a TCP client to the object-detection Pi.
 #
@@ -46,7 +57,7 @@ OBSTACLE_PAIR_SEPARATOR = ';'
 OBSTACLE_INPUT_DEBUG = False
 
 # GPS
-GPS_PORT = '/dev/ttyAMA0'
+GPS_PORT = '/dev/serial0'
 GPS_BAUD = 115200
 GPS_UPDATE_RATE_HZ = 2 # Hz
 
