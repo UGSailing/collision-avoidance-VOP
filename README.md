@@ -36,6 +36,18 @@ example log line in `detections.jsonl`:
 {"timestamp_utc":"2026-03-11T12:00:00.100Z","elapsed_s":0.1,"detections":[{"camera":0,"label":"duck","confidence":0.91,"distance_m":5.2,"axis_offset_m":-0.4,"bbox_xyxy":[100.0,180.0,260.0,360.0]}]}
 ```
 
+## Activating GPS on the RPI 5
+
+```bash
+sudo raspi-config
+```
+choose 3) Interface Options
+choose 6) Serial Port
+Choose no
+Choose yes
+
+
+
 notes:
 - the script uses `camera/calibration_yamls/calib_cam0.yaml` by default for focal length.
 - label remapping defaults to `{\"bird\": \"duck\"}`.
