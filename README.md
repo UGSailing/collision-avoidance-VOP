@@ -51,8 +51,8 @@ notes:
 obstacle Pi
 ```bash
 sudo nmcli con show
-sudo nmcli con mod "Wired connection 1" ipv4.method manual ipv4.addresses 192.168.50.2/24 ipv4.gateway "" ipv4.dns "" ipv6.method ignore connection.interface-name eth0 connection.autoconnect yes
-sudo nmcli con down "Wired connection 1"; sudo nmcli con up "Wired connection 1"
+sudo nmcli con mod "netplan-eth0" ipv4.method manual ipv4.addresses 192.168.50.2/24 ipv4.gateway "" ipv4.dns "" ipv6.method ignore connection.interface-name eth0 connection.autoconnect yes
+sudo nmcli con down "netplan-eth0"; sudo nmcli con up "netplan-eth0"
 ip -4 addr show dev eth0
 ```
 
