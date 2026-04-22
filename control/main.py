@@ -95,6 +95,26 @@ if __name__ == "__main__":
     threading.Thread(target=planning_loop, args=(stop_event, run_dir), daemon=True).start()
     threading.Thread(target=execution_loop, args=(stop_event, run_dir), daemon=True).start()
 
+    # # interactive CLI
+    # map_process = None
+    # try:
+    #     # Check if we are in a real terminal
+    #     if sys.stdin.isatty():
+    #         while True:
+    #             resp = input("Type 'map', 'exit', or 'destination <lat> <lon>'\n").strip().lower()
+                
+    #             # ... Keep all your existing CLI logic here ...
+    #             # (if resp == "exit": ..., elif resp == "map": ..., etc.)
+
+    #     else:
+    #         # We are running as a background service!
+    #         print("Headless mode detected (no terminal). Interactive CLI disabled.")
+    #         while True:
+    #             time.sleep(1) # Keeps the main thread alive so background threads can run
+
+    # except KeyboardInterrupt:
+    #     print("\nShutdown signal received.")
+
     # interactive CLI
     map_process = None
     try:
