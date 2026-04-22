@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UGent Sailing Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Space+Grotesk:wght@400;500;700&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="styles/main.css">
+</head>
+
+<body>
+  <main class="page">
+    <span class="wave wave-1" aria-hidden="true"></span>
+    <span class="wave wave-2" aria-hidden="true"></span>
+
+    <section class="dashboard">
+      <article class="panel hero reveal">
+        <div>
+          <span class="pill">UGent Sailing VOP</span>
+          <h1>UGent Sailing<br>Mission Control</h1>
+          <p class="subtitle">
+            Operate the autonomous boat from this dashboard. Start recordings,
+            launch missions, and monitor live system state in real time.
+          </p>
+
+          <div class="mission-grid">
+            <div class="stat">
+              <div class="stat-label">Vehicle</div>
+              <div class="stat-value">USV Alpha</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Camera feed</div>
+              <div class="stat-value">Stereo ready</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">Collision module</div>
+              <div class="stat-value">Armed</div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="live-card reveal delay-1">
+          <p class="live-title">Live System</p>
+          <p class="live-state">
+            <span class="live-dot" id="liveDot"></span>
+            <span id="liveStateText">Waiting for mission command.</span>
+          </p>
+          <div class="status-box">
+            <p class="status-line"><strong>API:</strong> <span id="apiState">Checking...</span></p>
+            <p class="status-line"><strong>Recording:</strong> <span id="recordingState">Idle</span></p>
+            <p class="status-line"><strong>Mission:</strong> <span id="missionState">Standby</span></p>
+            <p class="status-line"><strong>Last action:</strong> <span id="lastAction">Dashboard online</span></p>
+          </div>
+        </aside>
+      </article>
+
+      <article class="panel controls reveal delay-2">
+        <div class="controls-head">
+          <h2>Boat Controls</h2>
+          <span class="pill">Connected to Pi API</span>
+        </div>
+
+        <div class="actions">
+          <button id="startRecordingBtn" class="btn btn-primary" type="button">Start recording</button>
+          <button id="stopRecordingBtn" class="btn btn-danger" type="button">Stop recording</button>
+          <button id="startMissionBtn" class="btn btn-soft" type="button">Start mission</button>
+          <button id="abortMissionBtn" class="btn btn-danger" type="button">Abort mission</button>
+        </div>
+
+        <div>
+          <h3>System Log</h3>
+          <div class="log" id="logOutput" aria-live="polite"></div>
+        </div>
+      </article>
+
+      <p class="footer-note">UGent Sailing Project Dashboard</p>
+    </section>
+  </main>
+
+  <script src="scripts/main.js"></script>
+</body>
+
+</html>
