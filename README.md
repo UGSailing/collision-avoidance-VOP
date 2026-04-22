@@ -41,10 +41,10 @@ example log line in `detections.jsonl`:
 ```bash
 sudo raspi-config
 ```
-choose 3) Interface Options
-choose 6) Serial Port
-Choose no
-Choose yes
+- choose 3) Interface Options  
+- choose 6) Serial Port  
+- Choose no  
+- Choose yes  
 
 
 
