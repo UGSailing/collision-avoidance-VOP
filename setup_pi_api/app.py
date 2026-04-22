@@ -16,6 +16,10 @@ from fastapi.middleware.cors import CORSMiddleware
 import config
 
 
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
 @dataclass
 class ManagedProcess:
     name: str
@@ -154,10 +158,6 @@ control_proc = ManagedProcess(
     cwd=config.CONTROL_CWD,
     log_path=config.LOG_DIR / "control.log",
 )
-
-
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 def _status_payload() -> dict[str, Any]:
