@@ -664,6 +664,7 @@ def main() -> int:
 
                 obstacle_payload = build_obstacle_tcp_payload(payload["detections"])
                 if tcp_server is not None and obstacle_payload is not None:
+                    print(f"Sent to tcp: {obstacle_payload}")
                     tcp_server.send_line(obstacle_payload)
                     if OBSTACLE_OUTPUT_DEBUG:
                         logging.info("[TCP] payload: %s", obstacle_payload)
