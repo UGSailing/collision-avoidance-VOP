@@ -1,2 +1,0 @@
-timestamp_utc,elapsed_s,camera,label,confidence,bbox_x1,bbox_y1,bbox_x2,bbox_y2,distance_m,angle_deg
-2026-04-03T14:52:44.426Z,2.258,pi:0,sports ball,0.3274,1582.34,428.49,1637.45,485.21,7.258,20.630

@@ -1,9 +1,0 @@
-2026-04-03 17:07:14 | INFO | Run folder: /home/mario/Documents/collision-avoidance-VOP/camera/recordings/20260403_170714
-2026-04-03 17:07:14 | INFO | Camera output dir: /home/mario/Documents/collision-avoidance-VOP/camera/recordings/20260403_170714/camera0_recording
-2026-04-03 17:07:14 | INFO | Hailo apps root: /home/mario/Documents/hailo-apps
-2026-04-03 17:07:14 | INFO | Calibration YAML: /home/mario/Documents/collision-avoidance-VOP/camera/calibration_yamls/camera_calibration.yaml
-2026-04-03 17:07:14 | INFO | Network: yolov11s
-2026-04-03 17:07:14 | INFO | Input: rpi
-2026-04-03 17:07:14 | INFO | Logging label: sports ball
-2026-04-03 17:07:14 | INFO | Object height (m): 0.213267
-2026-04-03 17:07:14 | INFO | CSV path: /home/mario/Documents/collision-avoidance-VOP/camera/recordings/20260403_170714/detections.csv

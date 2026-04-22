@@ -1,9 +1,0 @@
-2026-04-03 16:22:35 | INFO | Run folder: /home/mario/Documents/collision-avoidance-VOP/camera/recordings/20260403_162235
-2026-04-03 16:22:35 | INFO | Camera output dir: /home/mario/Documents/collision-avoidance-VOP/camera/recordings/20260403_162235/camera0_recording
-2026-04-03 16:22:35 | INFO | Hailo apps root: /home/mario/Documents/hailo-apps
-2026-04-03 16:22:35 | INFO | Calibration YAML: /home/mario/Documents/collision-avoidance-VOP/camera/calibration_yamls/camera_calibration.yaml
-2026-04-03 16:22:35 | INFO | Network: yolov8s
-2026-04-03 16:22:35 | INFO | Input: collision-avoidance-VOP/camera/recordings/Ball_duck_water/IMG_4477.MOV
-2026-04-03 16:22:35 | INFO | Logging label: sports ball
-2026-04-03 16:22:35 | INFO | Object height (m): 0.21367
-2026-04-03 16:22:35 | INFO | CSV path: /home/mario/Documents/collision-avoidance-VOP/camera/recordings/20260403_162235/detections.csv
