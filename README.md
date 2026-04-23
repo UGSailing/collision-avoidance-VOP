@@ -59,7 +59,7 @@ ip -4 addr show dev eth0
 
 
 ## Camerasystem boat startup (objectdetectie + stereocamera)
-**TODO: translate to English**
+TODO: translate to English
 
 - ```cd``` into camera folder
 - from the project root, run:
@@ -90,3 +90,24 @@ notes:
   ```bash
   --object-widths-json "{\"duck\":0.25,\"buoy\":0.30}"
   ```
+
+## set up autorun on boot
+### Control Pi
+Copy over the service script to systemd:
+```bash
+cp control/autostart_VOP.service /etc/systemd/system/autostart_VOP.service
+```
+
+Reload and enable the service:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart autostart_VOP.service
+```
+
+Get the status of the service:
+```bash
+sudo systemctl status autostart_VOP.service
+```
+
+### Camera Pi
+TODO
