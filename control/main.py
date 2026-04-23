@@ -3,6 +3,7 @@ import pandas as pd
 import threading
 import subprocess
 import sys
+import time
 from pathlib import Path
 from datetime import datetime
 import config
@@ -46,12 +47,22 @@ def planning_loop(stop_event: threading.Event, run_dir: Path):
 
 def execution_loop(stop_event: threading.Event, run_dir: Path):
     path_follower = PathFollower(run_dir)
+    next_tick = time.monotonic()  # absolute schedule anchor
+
     while not stop_event.is_set():
+        next_tick += 1 / config.PATH_EXECUTION_FREQUENCY_HZ
         try:
-            # path_follower.follow_path(run_dir)
-            stop_event.wait(10)
+            path_follower.follow_path(run_dir)
         except Exception as e:
             print(f"Path execution error: {e}")
+
+        delay = next_tick - time.monotonic()
+
+        if delay > 0:
+            stop_event.wait(delay)
+        else:
+            next_tick = time.monotonic()  # we're late, skip to now to avoid spiraling
+        
 
 if __name__ == "__main__":
     # directories
@@ -62,27 +73,47 @@ if __name__ == "__main__":
     # files
     points_file = run_dir / 'points.csv'
     points_file.touch()
-    # pd.DataFrame(columns=['id', 'category', 'latitude', 'longitude', 'heading']).to_csv(points_file, index=False)
-
-    # TODO remove seed data and uncomment line above
-    data = {
-        'id': [0, 1, 2, 0, 0, 1, 2, 3, 4],
-        'category': ['gps', 'gps', 'gps', 'destination', 'camera', 'camera', 'camera', 'camera', 'camera'],
-        'latitude': [51.011466, 51.011401, 51.011335, 51.011504, 51.011453, 51.011412, 51.011340, 51.011485, 51.011394],
-        'longitude': [3.708731, 3.709055, 3.709215, 3.708728, 3.708779, 3.708822, 3.708969, 3.708916, 3.709079],
-        'heading': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    }
-    pd.DataFrame(data).to_csv(points_file, index=False)
+    pd.DataFrame(columns=['id', 'category', 'latitude', 'longitude', 'heading']).to_csv(points_file, index=False)
 
     path_file = run_dir / 'path.csv'
     path_file.touch()
     pd.DataFrame(columns=['id', 'latitude', 'longitude']).to_csv(path_file, index=False)
+
+    # seed data for testing
+    # data = {
+    #     'id': [0, 1, 2, 0, 0, 1, 2, 3, 4],
+    #     'category': ['gps', 'gps', 'gps', 'destination', 'camera', 'camera', 'camera', 'camera', 'camera'],
+    #     'latitude': [51.011466, 51.011401, 51.011335, 51.011504, 51.011453, 51.011412, 51.011340, 51.011485, 51.011394],
+    #     'longitude': [3.708731, 3.709055, 3.709215, 3.708728, 3.708779, 3.708822, 3.708969, 3.708916, 3.709079],
+    #     'heading': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    # }
+    # pd.DataFrame(data).to_csv(points_file, index=False)
 
     # threads
     stop_event = threading.Event()
     threading.Thread(target=collection_loop, args=(stop_event, run_dir), daemon=True).start()
     threading.Thread(target=planning_loop, args=(stop_event, run_dir), daemon=True).start()
     threading.Thread(target=execution_loop, args=(stop_event, run_dir), daemon=True).start()
+
+    # # interactive CLI
+    # map_process = None
+    # try:
+    #     # Check if we are in a real terminal
+    #     if sys.stdin.isatty():
+    #         while True:
+    #             resp = input("Type 'map', 'exit', or 'destination <lat> <lon>'\n").strip().lower()
+                
+    #             # ... Keep all your existing CLI logic here ...
+    #             # (if resp == "exit": ..., elif resp == "map": ..., etc.)
+
+    #     else:
+    #         # We are running as a background service!
+    #         print("Headless mode detected (no terminal). Interactive CLI disabled.")
+    #         while True:
+    #             time.sleep(1) # Keeps the main thread alive so background threads can run
+
+    # except KeyboardInterrupt:
+    #     print("\nShutdown signal received.")
 
     # interactive CLI
     map_process = None
@@ -135,7 +166,7 @@ if __name__ == "__main__":
                     print(f"Destination updated to: {new_lat}, {new_lon}")
                     
                 except (IndexError, ValueError):
-                    print("Invalid format. Use: -destination 51.011 3.708")
+                    print("Invalid format. Use: destination <lat> <lon>")
                 except Exception as e:
                     print(f"Error updating destination: {e}")
             # -----------------------------

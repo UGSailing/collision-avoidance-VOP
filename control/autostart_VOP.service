@@ -1,0 +1,15 @@
+[Unit]
+Description=Autostart the control main.py from the collision avoidance VOP
+After=network.target
+
+[Service]
+ExecStart=/home/luigi/Documents/collision-avoidance-VOP/control/.venv/bin/python3 /home/luigi/Documents/collision-avoidance-VOP/control/main.py
+
+WorkingDirectory=/home/luigi/Documents/collision-avoidance-VOP/
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+User=pi
+
+[Install]
+WantedBy=multi-user.target
