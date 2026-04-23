@@ -1,14 +1,12 @@
 from __future__ import annotations
-
+from pathlib import Path
+from urllib.parse import urlparse
 import argparse
 import math
 import socket
 import sys
 import threading
 import time
-from pathlib import Path
-from urllib.parse import urlparse
-
 import pandas as pd
 
 try:
@@ -16,10 +14,9 @@ try:
 except ModuleNotFoundError:
     sys.path.append(str(Path(__file__).resolve().parents[1]))
     import config
-
-
 POINT_COLUMNS = ["id", "category", "latitude", "longitude", "heading"]
 
+# NOTE: Enable fanout to ESP32 serial port(s) in config.ESP_SERIAL_PORTS to feed mock GPS data into the real control loop.
 
 class CommandState:
     def __init__(self) -> None:
