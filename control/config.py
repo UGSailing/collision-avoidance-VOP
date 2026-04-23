@@ -96,3 +96,6 @@ EXCLUSION_ZONES = [
         (51.011404, 3.708922),
     ]
 ]
+
+# default destination for autostart
+DEFAULT_DESTINATION = (51.011387, 3.709251)

@@ -95,83 +95,79 @@ if __name__ == "__main__":
     threading.Thread(target=planning_loop, args=(stop_event, run_dir), daemon=True).start()
     threading.Thread(target=execution_loop, args=(stop_event, run_dir), daemon=True).start()
 
-    # # interactive CLI
-    # map_process = None
-    # try:
-    #     # Check if we are in a real terminal
-    #     if sys.stdin.isatty():
-    #         while True:
-    #             resp = input("Type 'map', 'exit', or 'destination <lat> <lon>'\n").strip().lower()
-                
-    #             # ... Keep all your existing CLI logic here ...
-    #             # (if resp == "exit": ..., elif resp == "map": ..., etc.)
-
-    #     else:
-    #         # We are running as a background service!
-    #         print("Headless mode detected (no terminal). Interactive CLI disabled.")
-    #         while True:
-    #             time.sleep(1) # Keeps the main thread alive so background threads can run
-
-    # except KeyboardInterrupt:
-    #     print("\nShutdown signal received.")
-
     # interactive CLI
     map_process = None
     try:
-        while True:
-            resp = input("Type 'map', 'exit', or 'destination <lat> <lon>'\n").strip().lower()
-            if resp == "exit":
-                break
-            elif resp == "map":
-                if map_process is None or map_process.poll() is not None:
-                    # pathing for Linux environment
-                    if sys.platform == "win32":
-                        python_exe = base_dir / 'control/.venv/Scripts/python.exe'
-                    else:
-                        python_exe = base_dir / 'control/.venv/bin/python'
-                    script = base_dir / 'control/visualisation/live_map.py'
-                    
-                    if not python_exe.exists():
-                        print(f"Error: Python executable not found at {python_exe}")
-                        continue
-                    if not script.exists():
-                        print(f"Error: Visualization script not found at {script}")
-                        continue
+        # Check if we are in a real terminal
+        if sys.stdin.isatty():
+            while True:
+                resp = input("Type 'map', 'exit', or 'destination <lat> <lon>'\n").strip().lower()
+                if resp == "exit":
+                    break
+                elif resp == "map":
+                    if map_process is None or map_process.poll() is not None:
+                        # pathing for Linux environment
+                        if sys.platform == "win32":
+                            python_exe = base_dir / 'control/.venv/Scripts/python.exe'
+                        else:
+                            python_exe = base_dir / 'control/.venv/bin/python'
+                        script = base_dir / 'control/visualisation/live_map.py'
+                        
+                        if not python_exe.exists():
+                            print(f"Error: Python executable not found at {python_exe}")
+                            continue
+                        if not script.exists():
+                            print(f"Error: Visualization script not found at {script}")
+                            continue
 
-                    print("Launching live map...")
-                    map_process = subprocess.Popen([str(python_exe), str(script), str(run_dir)])
+                        print("Launching live map...")
+                        map_process = subprocess.Popen([str(python_exe), str(script), str(run_dir)])
+                    else:
+                        print("Map is already running.")
+                elif resp.startswith("destination"):
+                    try:
+                        # Split the string and extract the numbers
+                        parts = resp.split()
+                        new_lat = float(parts[1])
+                        new_lon = float(parts[2])
+
+                        # Read current points, update the destination row, and save back
+                        df = pd.read_csv(points_file)
+                        
+                        if 'destination' in df['category'].values:
+                            df.loc[df['category'] == 'destination', ['latitude', 'longitude']] = [new_lat, new_lon]
+                        else:
+                            # Fallback if destination row didn't exist yet
+                            new_row = pd.DataFrame([{
+                                'id': 0, 'category': 'destination', 
+                                'latitude': new_lat, 'longitude': new_lon, 'heading': 0.0
+                            }])
+                            df = pd.concat([df, new_row], ignore_index=True)
+                        
+                        df.to_csv(points_file, index=False)
+                        print(f"Destination updated to: {new_lat}, {new_lon}")
+                        
+                    except (IndexError, ValueError):
+                        print("Invalid format. Use: destination <lat> <lon>")
+                    except Exception as e:
+                        print(f"Error updating destination: {e}")
+                # -----------------------------
                 else:
-                    print("Map is already running.")
-            elif resp.startswith("destination"):
-                try:
-                    # Split the string and extract the numbers
-                    parts = resp.split()
-                    new_lat = float(parts[1])
-                    new_lon = float(parts[2])
-
-                    # Read current points, update the destination row, and save back
-                    df = pd.read_csv(points_file)
-                    
-                    if 'destination' in df['category'].values:
-                        df.loc[df['category'] == 'destination', ['latitude', 'longitude']] = [new_lat, new_lon]
-                    else:
-                        # Fallback if destination row didn't exist yet
-                        new_row = pd.DataFrame([{
-                            'id': 0, 'category': 'destination', 
-                            'latitude': new_lat, 'longitude': new_lon, 'heading': 0.0
-                        }])
-                        df = pd.concat([df, new_row], ignore_index=True)
-                    
-                    df.to_csv(points_file, index=False)
-                    print(f"Destination updated to: {new_lat}, {new_lon}")
-                    
-                except (IndexError, ValueError):
-                    print("Invalid format. Use: destination <lat> <lon>")
-                except Exception as e:
-                    print(f"Error updating destination: {e}")
-            # -----------------------------
-            else:
-                print("Invalid input.")
+                    print("Invalid input.")
+        else:
+            # Headless mode detected (no terminal)
+            # Interactive CLI disabled 
+            # Using default destination and running indefinitely
+            df = pd.read_csv(points_file)
+            new_row = pd.DataFrame([{
+                'id': 0, 'category': 'destination', 
+                'latitude': config.DEFAULT_DESTINATION[0], 'longitude': config.DEFAULT_DESTINATION[1], 'heading': 0.0
+            }])
+            df = pd.concat([df, new_row], ignore_index=True)
+            df.to_csv(points_file, index=False)
+            while True:
+                time.sleep(1) # Keeps the main thread alive so background threads can run
+            
     except KeyboardInterrupt:
         print("\nShutdown signal received.")
 
