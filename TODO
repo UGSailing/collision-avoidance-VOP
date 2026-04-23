@@ -8,6 +8,10 @@
 
 ## Camera & detection
 
+### general
+
+- update the readme
+
 ### detection
 
 - Pretrained YOLO model online vinden om boeien te herkennen
@@ -34,19 +38,13 @@ Installeer de packages in requirements.txt in de gewenste venv.
 Voor picamera moet aparte installatie met bv. "sudo apt install python3-picamera2" gebeuren i.p.v. met pip.
 
 ## Control
+
 ### general
-- convert `boat_main.py` to not use CAN
+- testing, testing, testing
 
 ### data collection
-- read in camera & gps messages and put coords into csv
-  - test with GPS ✅
-  - test with camera
 - other ways to store objects
 
 ### path planning
 - granular occupancy map (with different strengths depending on object type?)
 - better path algorithm -> by UGS
-
-### path following
-- connect to motors
-- better path execution
