@@ -14,4 +14,4 @@ cd "$(dirname "$0")" || exit 1
 source .venv/bin/activate
 
 # Run the Python script
-python start_boat_mission_wo_hailo.py
+python3 start_boat_mission_wo_hailo.py --backend pi --camera-left 0 --camera-right 1 --model yolo_models/duck.pt --camera-depth single --object-height-m 0.175 --calib-yaml calibration_yamls/camera_calibration.yaml --duration 60
