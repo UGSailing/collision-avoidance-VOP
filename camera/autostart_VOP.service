@@ -1,0 +1,15 @@
+[Unit]
+Description=Autostart the control main.py from the collision avoidance VOP
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/bash /home/mario/Documents/collision_avoidance/camera/run_mission.sh
+
+WorkingDirectory=/home/mario/Documents/collision-avoidance-VOP/camera
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+User=mario
+
+[Install]
+WantedBy=multi-user.target
