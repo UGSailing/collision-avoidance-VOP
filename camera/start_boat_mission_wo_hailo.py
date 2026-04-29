@@ -673,7 +673,6 @@ def main() -> int:
                 log_file.flush()
 
                 # can.send_objects(payload)
-
                 next_log_t += args.log_interval
 
         finally:
