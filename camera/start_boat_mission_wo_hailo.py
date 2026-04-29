@@ -39,9 +39,8 @@ from config import (
 python camera/start_boat_mission.py --backend webcam --webcam-left 0 --webcam-right -1 --model camera/yolo_models/duck.pt --single-camera-depth --object-height-m 0.175 --calib-yaml camera/calibration_yamls/camera_calibration.yaml
 """
 
-""" RPI vanuit root
-python camera/start_boat_mission.py --backend pi --camera-left 0 --camera-right 1 --model camera/yolo_models/duck.pt --single-camera-depth --object-height-m 0.175 --calib-yaml camera/calibration_yamls/camera_calibration.yaml
-"""
+""" RPI vanuit /camera
+python3 start_boat_mission_wo_hailo.py --backend pi --camera-left 0 --camera-right 1 --model yolo_models/duck.pt --camera-depth single --object-height-m 0.12 --calib-yaml calibration_yamls/camera_calibration.yaml --duration 60"""
 
 try:
     import cv2
@@ -673,6 +672,7 @@ def main() -> int:
                 log_file.flush()
 
                 # can.send_objects(payload)
+
                 next_log_t += args.log_interval
 
         finally:

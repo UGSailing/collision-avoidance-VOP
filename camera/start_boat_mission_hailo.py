@@ -2,16 +2,14 @@
 # VERGEET NIET DE source setup... vanuit hailo als venv te draaien!!!!!
 # Linux examples:
 # cd ~/Documents/collision-avoidance-VOP/camera
-# python3 start_boat_mission_hailo.py --input rpi --object-height 0.21367
+# python3 start_boat_mission_hailo.py --input rpi --object-height 0.12
 #
 # cd ~/Documents/collision-avoidance-VOP/camera
 # python3 start_boat_mission_hailo.py --input rpi --object-height 0.23 --save-output
 #
 # cd ~/Documents/collision-avoidance-VOP/camera
-# python3 start_boat_mission_hailo.py --input rpi --camera-index 1 --object-height 0.23
+# NIET GEBRUIKEN RECHTER CAMERA SHIT python3 start_boat_mission_hailo.py --input rpi --camera-index 1 --object-height 0.12
 
-
-#python3 start_boat_mission_hailo.py --input /home/mario/Documents/collision-avoidance-VOP/camera/recordings/Ball_duck_water/duck_in_water.mov --object-height 0.213267
 """Run rectified Hailo duck detection with mono distance and TCP obstacle output."""
 
 import argparse
