@@ -40,7 +40,7 @@ Run:
 sudo nmcli con show
 ```
 Replace ```"netplan-eth0``` in the commands below with the name of the eth0 connection.
-#### obstacle Pi
+#### camera Pi
 ```bash
 sudo nmcli con mod "netplan-eth0" ipv4.method manual ipv4.addresses 192.168.50.2/24 ipv4.gateway "" ipv4.dns "" ipv6.method ignore connection.interface-name eth0 connection.autoconnect yes
 sudo nmcli con down "netplan-eth0"
