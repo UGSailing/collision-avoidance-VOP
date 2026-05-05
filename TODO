@@ -1,8 +1,6 @@
 # To do
 
 ## Reporting
-- project goals
-- presentation
 - report
 - poster
 
@@ -41,9 +39,10 @@ Voor picamera moet aparte installatie met bv. "sudo apt install python3-picamera
 
 ### general
 - testing, testing, testing
+- fix autorun script -> boat main
 
 ### data collection
-- other ways to store objects
+- multiple object types
 
 ### path planning
 - granular occupancy map (with different strengths depending on object type?)
