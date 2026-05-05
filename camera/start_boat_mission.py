@@ -16,16 +16,17 @@ from typing import Any
 import numpy as np
 import yaml
 
+# import can_comms
 from depth_calculation.single_camera_depth_calculation import (
     distance_and_angle_from_bbox,
 )
 
 
-"""
+""" WEBCAM vanuit root
 python camera/start_boat_mission.py --backend webcam --webcam-left 0 --webcam-right -1 --model camera/yolo_models/duck.pt --single-camera-depth --object-height-m 0.175 --calib-yaml camera/calibration_yamls/camera_calibration.yaml
 """
 
-"""
+""" RPI vanuit root
 python camera/start_boat_mission.py --backend pi --camera-left 0 --camera-right 1 --model camera/yolo_models/duck.pt --single-camera-depth --object-height-m 0.175 --calib-yaml camera/calibration_yamls/camera_calibration.yaml
 """
 
@@ -40,6 +41,18 @@ H264Encoder: Any = None
 FfmpegOutput: Any = None
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+
+def load_stereo_calib_npz():
+    # loads the dual calib file (.npz)
+    current_file = Path(__file__).resolve()
+    camera_dir = current_file.parent.parent
+    calib_file = camera_dir / "calibration_npz" / "stereo_calib.npz"
+    data = np.load(calib_file)
+    required = ["map1x", "map1y", "map2x", "map2y", "P1", "T"]
+    for k in required:
+        if k not in data:
+            raise ValueError(f"Stereo calib mist key: {k}")
+    return {k: data[k] for k in data.files}
 
 
 def import_yolo() -> None:
@@ -82,11 +95,6 @@ def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run mission on Pi cameras or laptop webcam with same script.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=(
-            "Examples:\n"
-            "  Laptop (selfie cam): python camera/start_boat_mission.py --backend webcam --webcam-left 0 --webcam-right -1 --model camera/yolo_models/duck.pt\n"
-            "  Raspberry Pi (2 cams): python start_boat_mission.py --backend pi --camera-left 0 --camera-right 1 --model duck.pt"
-        ),
     )
     parser.add_argument("--backend", choices=("pi", "webcam", "mock"), default="pi")
     parser.add_argument("--duration", type=float, default=10.0)
@@ -97,9 +105,8 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument("--model", type=str, default="duck.pt")
     parser.add_argument("--conf", type=float, default=0.5)
     parser.add_argument(
-        "--single-camera-depth",
-        action="store_true",
-        help="Estimate distance/angle from bbox height using one camera model",
+        "--camera-depth", choices=("single", "dual"),
+        help="Estimate distance/angle from bbox height using one or two camera model",
     )
     parser.add_argument(
         "--object-height-m",
@@ -320,7 +327,7 @@ def main() -> int:
     model = YOLO(args.model)
 
     depth_intrinsics: tuple[float, float, float, float] | None = None
-    if args.single_camera_depth:
+    if args.camera_depth == "single":
         try:
             depth_intrinsics = load_intrinsics_from_yaml(args.calib_yaml)
         except (FileNotFoundError, ValueError) as exc:
@@ -337,6 +344,9 @@ def main() -> int:
             cx,
             cy,
         )
+    elif args.camera_depth == "dual":
+        # Implement stereo depth calculation here
+        print("here")
 
     left_cam = None
     right_cam = None
@@ -347,6 +357,8 @@ def main() -> int:
 
     left_name = "left"
     right_name = "right"
+
+    # can = can_comms.CANComms()
 
     if args.backend == "pi":
         left_name = f"pi:{args.camera_left}"
@@ -517,9 +529,13 @@ def main() -> int:
                 log_file.write(json.dumps(payload) + "\n")
                 log_file.flush()
 
+                # can.send_objects(payload)
+
                 next_log_t += args.log_interval
 
         finally:
+            # can.close()
+
             if args.backend == "pi":
                 if left_cam is not None:
                     stop_pi_camera(left_cam)

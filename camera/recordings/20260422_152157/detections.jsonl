@@ -1,0 +1,37 @@
+{"timestamp_utc": "2026-04-22T13:21:58.149Z", "elapsed_s": 0.0, "detections": [{"camera": "pi:0", "label": "duck", "confidence": 0.745, "bbox_xyxy": [1108.9, 320.51, 1392.63, 716.23], "distance_m": 0.889, "angle_deg": 8.312}, {"camera": "pi:1", "label": "duck", "confidence": 0.5787, "bbox_xyxy": [1255.88, 700.19, 1911.16, 1080.0], "distance_m": 0.926, "angle_deg": 17.274}]}
+{"timestamp_utc": "2026-04-22T13:22:01.557Z", "elapsed_s": 3.409, "detections": [{"camera": "pi:0", "label": "duck", "confidence": 0.558, "bbox_xyxy": [781.15, 289.21, 1100.42, 653.01], "distance_m": 0.967, "angle_deg": -0.429}, {"camera": "pi:1", "label": "duck", "confidence": 0.5424, "bbox_xyxy": [1312.24, 703.51, 1906.33, 1080.0], "distance_m": 0.934, "angle_deg": 17.938}]}
+{"timestamp_utc": "2026-04-22T13:22:03.156Z", "elapsed_s": 5.008, "detections": [{"camera": "pi:1", "label": "duck", "confidence": 0.5375, "bbox_xyxy": [1416.06, 0.0, 1876.45, 501.69], "distance_m": 0.701, "angle_deg": 18.883}, {"camera": "pi:1", "label": "duck", "confidence": 0.5064, "bbox_xyxy": [1328.61, 516.4, 1889.52, 1080.0], "distance_m": 0.624, "angle_deg": 17.932}]}
+{"timestamp_utc": "2026-04-22T13:22:04.734Z", "elapsed_s": 6.586, "detections": [{"camera": "pi:1", "label": "duck", "confidence": 0.6721, "bbox_xyxy": [1187.1, 0.0, 1849.99, 428.52], "distance_m": 0.821, "angle_deg": 15.577}]}
+{"timestamp_utc": "2026-04-22T13:22:06.426Z", "elapsed_s": 8.278, "detections": [{"camera": "pi:0", "label": "duck", "confidence": 0.5926, "bbox_xyxy": [419.16, 143.14, 763.15, 458.4], "distance_m": 1.116, "angle_deg": -10.244}]}
+{"timestamp_utc": "2026-04-22T13:22:08.096Z", "elapsed_s": 9.948, "detections": [{"camera": "pi:0", "label": "duck", "confidence": 0.6377, "bbox_xyxy": [571.71, 0.0, 1009.93, 533.96], "distance_m": 0.659, "angle_deg": -4.676}, {"camera": "pi:0", "label": "duck", "confidence": 0.5131, "bbox_xyxy": [906.9, 117.15, 1513.44, 440.18], "distance_m": 1.089, "angle_deg": 7.18}]}
+{"timestamp_utc": "2026-04-22T13:22:09.677Z", "elapsed_s": 11.529, "detections": []}
+{"timestamp_utc": "2026-04-22T13:22:11.263Z", "elapsed_s": 13.114, "detections": [{"camera": "pi:0", "label": "duck", "confidence": 0.9158, "bbox_xyxy": [616.48, 162.23, 961.2, 512.58], "distance_m": 1.004, "angle_deg": -4.732}]}
+{"timestamp_utc": "2026-04-22T13:22:12.880Z", "elapsed_s": 14.732, "detections": []}
+{"timestamp_utc": "2026-04-22T13:22:14.435Z", "elapsed_s": 16.287, "detections": [{"camera": "pi:0", "label": "duck", "confidence": 0.5773, "bbox_xyxy": [517.41, 84.78, 811.46, 538.65], "distance_m": 0.775, "angle_deg": -8.217}]}
+{"timestamp_utc": "2026-04-22T13:22:16.035Z", "elapsed_s": 17.887, "detections": [{"camera": "pi:1", "label": "duck", "confidence": 0.6997, "bbox_xyxy": [1413.63, 695.26, 1915.27, 1080.0], "distance_m": 0.914, "angle_deg": 19.344}]}
+{"timestamp_utc": "2026-04-22T13:22:17.636Z", "elapsed_s": 19.488, "detections": [{"camera": "pi:0", "label": "duck", "confidence": 0.7884, "bbox_xyxy": [300.02, 2.08, 1371.63, 1080.0], "distance_m": 0.326, "angle_deg": -3.405}, {"camera": "pi:1", "label": "duck", "confidence": 0.6507, "bbox_xyxy": [1402.37, 718.11, 1916.75, 1080.0], "distance_m": 0.972, "angle_deg": 19.22}, {"camera": "pi:1", "label": "duck", "confidence": 0.5342, "bbox_xyxy": [1395.62, 559.21, 1920.0, 1080.0], "distance_m": 0.675, "angle_deg": 19.176}]}
+{"timestamp_utc": "2026-04-22T13:22:19.187Z", "elapsed_s": 21.038, "detections": [{"camera": "pi:0", "label": "duck", "confidence": 0.6803, "bbox_xyxy": [482.14, 255.17, 957.38, 762.38], "distance_m": 0.693, "angle_deg": -6.673}]}
+{"timestamp_utc": "2026-04-22T13:22:20.680Z", "elapsed_s": 22.531, "detections": [{"camera": "pi:0", "label": "duck", "confidence": 0.8718, "bbox_xyxy": [660.87, 312.29, 917.41, 576.37], "distance_m": 1.332, "angle_deg": -4.723}, {"camera": "pi:1", "label": "duck", "confidence": 0.7104, "bbox_xyxy": [739.67, 319.82, 1042.37, 599.7], "distance_m": 1.257, "angle_deg": -1.841}]}
+{"timestamp_utc": "2026-04-22T13:22:22.219Z", "elapsed_s": 24.071, "detections": [{"camera": "pi:0", "label": "duck", "confidence": 0.8636, "bbox_xyxy": [678.95, 289.64, 964.08, 571.99], "distance_m": 1.246, "angle_deg": -3.809}]}
+{"timestamp_utc": "2026-04-22T13:22:23.882Z", "elapsed_s": 25.734, "detections": [{"camera": "pi:0", "label": "duck", "confidence": 0.6938, "bbox_xyxy": [578.31, 105.58, 1216.73, 701.25], "distance_m": 0.59, "angle_deg": -1.657}, {"camera": "pi:1", "label": "duck", "confidence": 0.758, "bbox_xyxy": [1306.1, 700.96, 1914.77, 1080.0], "distance_m": 0.928, "angle_deg": 17.968}]}
+{"timestamp_utc": "2026-04-22T13:22:25.449Z", "elapsed_s": 27.301, "detections": [{"camera": "pi:1", "label": "duck", "confidence": 0.5072, "bbox_xyxy": [1270.31, 704.09, 1912.24, 1080.0], "distance_m": 0.936, "angle_deg": 17.474}]}
+{"timestamp_utc": "2026-04-22T13:22:27.091Z", "elapsed_s": 28.942, "detections": []}
+{"timestamp_utc": "2026-04-22T13:22:28.646Z", "elapsed_s": 30.497, "detections": []}
+{"timestamp_utc": "2026-04-22T13:22:30.230Z", "elapsed_s": 32.081, "detections": []}
+{"timestamp_utc": "2026-04-22T13:22:31.841Z", "elapsed_s": 33.693, "detections": [{"camera": "pi:1", "label": "duck", "confidence": 0.7616, "bbox_xyxy": [1440.18, 0.0, 1867.62, 496.1], "distance_m": 0.709, "angle_deg": 19.077}]}
+{"timestamp_utc": "2026-04-22T13:22:33.444Z", "elapsed_s": 35.295, "detections": []}
+{"timestamp_utc": "2026-04-22T13:22:35.073Z", "elapsed_s": 36.924, "detections": []}
+{"timestamp_utc": "2026-04-22T13:22:36.679Z", "elapsed_s": 38.53, "detections": []}
+{"timestamp_utc": "2026-04-22T13:22:38.236Z", "elapsed_s": 40.088, "detections": [{"camera": "pi:0", "label": "duck", "confidence": 0.7059, "bbox_xyxy": [1405.84, 599.59, 1918.56, 1080.0], "distance_m": 0.732, "angle_deg": 19.287}]}
+{"timestamp_utc": "2026-04-22T13:22:39.838Z", "elapsed_s": 41.69, "detections": []}
+{"timestamp_utc": "2026-04-22T13:22:41.531Z", "elapsed_s": 43.383, "detections": []}
+{"timestamp_utc": "2026-04-22T13:22:43.123Z", "elapsed_s": 44.975, "detections": []}
+{"timestamp_utc": "2026-04-22T13:22:44.682Z", "elapsed_s": 46.533, "detections": [{"camera": "pi:1", "label": "duck", "confidence": 0.7858, "bbox_xyxy": [771.69, 0.0, 1802.62, 1080.0], "distance_m": 0.326, "angle_deg": 9.32}]}
+{"timestamp_utc": "2026-04-22T13:22:46.294Z", "elapsed_s": 48.146, "detections": []}
+{"timestamp_utc": "2026-04-22T13:22:47.846Z", "elapsed_s": 49.697, "detections": [{"camera": "pi:0", "label": "duck", "confidence": 0.6654, "bbox_xyxy": [1845.04, 302.46, 1920.0, 417.77], "distance_m": 3.05, "angle_deg": 24.66}, {"camera": "pi:0", "label": "duck", "confidence": 0.5987, "bbox_xyxy": [872.99, 633.67, 1620.26, 1080.0], "distance_m": 0.788, "angle_deg": 8.197}]}
+{"timestamp_utc": "2026-04-22T13:22:49.459Z", "elapsed_s": 51.31, "detections": []}
+{"timestamp_utc": "2026-04-22T13:22:51.071Z", "elapsed_s": 52.923, "detections": []}
+{"timestamp_utc": "2026-04-22T13:22:52.686Z", "elapsed_s": 54.537, "detections": []}
+{"timestamp_utc": "2026-04-22T13:22:54.233Z", "elapsed_s": 56.085, "detections": []}
+{"timestamp_utc": "2026-04-22T13:22:55.867Z", "elapsed_s": 57.719, "detections": []}
+{"timestamp_utc": "2026-04-22T13:22:57.461Z", "elapsed_s": 59.312, "detections": []}

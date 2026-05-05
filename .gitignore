@@ -11,6 +11,7 @@ __pycache__/
 /camera/calib_cam0.yaml
 /camera/images_to_test_models
 /camera/recordings/on_boat_recordings
+/camera/recordings
 
 vop-ugs/
 .venv/

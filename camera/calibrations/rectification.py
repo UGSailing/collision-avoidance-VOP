@@ -10,7 +10,7 @@ import yaml
 
 ### gebruikt YAML file, check of bestaat en juiste resolutie
 ###  - Press 'c' to capture a still with rpicam-still (AE/AWB settle time applies)
-### python3 calibrations/calibration_filter.py --calib calibration_yamls/camera_calibration.yaml --camera 0 --out captures --alpha 0
+### python3 calibrations/rectification.py --calib calibration_yamls/camera_calibration.yaml --camera 0 --out captures --alpha 0
 
 ### met bestaande map
 ### python3 calibrations/rectification.py --calib calib_cam0.yaml --input-dir calib_good_calibration_imgs --out captures --alpha 0
