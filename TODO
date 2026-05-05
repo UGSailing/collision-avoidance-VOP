@@ -48,3 +48,7 @@ Voor picamera moet aparte installatie met bv. "sudo apt install python3-picamera
 ### path planning
 - granular occupancy map (with different strengths depending on object type?)
 - better path algorithm -> by UGS
+- commented out code in occupancy mapper?
+
+### path following
+- variable motor speed

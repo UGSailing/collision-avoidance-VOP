@@ -1,3 +1,8 @@
+"""
+    AI generated simulator that listens for rudder/thrust commands on a socket and updates a GPS position in points.csv accordingly.
+    This allows testing the path planning and execution without real GPS hardware, e.g. in an indoor setting.
+"""
+
 from __future__ import annotations
 from pathlib import Path
 from urllib.parse import urlparse

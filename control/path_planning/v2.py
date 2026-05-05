@@ -1,3 +1,9 @@
+"""
+    A path planner that uses A* to find a collision-free path on an occupancy grid.
+    Basic but functional.
+    It has built-in smoothing to reduce the number of waypoints and create more natural paths.
+"""
+
 import pandas as pd
 import numpy as np
 import heapq

@@ -1,3 +1,10 @@
+"""
+    The OccupancyMapper class reads GPS coordinates of obstacles from a CSV file and maintains an occupancy grid that represents the environment around the boat. 
+    It converts GPS coordinates to local XY coordinates, rasterizes them onto a grid, and applies dilation to create hitboxes around obstacles. 
+    The mapper also handles incremental updates efficiently by only processing new CSV rows and re-centering the grid when the boat's GPS origin shifts significantly. 
+    Additionally, it applies geofencing to mark areas outside the pond or within exclusion zones as blocked.
+"""
+
 import numpy as np
 import pandas as pd
 from scipy.ndimage import binary_dilation

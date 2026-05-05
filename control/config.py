@@ -1,3 +1,5 @@
+"""Central configuration file with all parameters for the control system."""
+
 # Path planning
 PATH_UPDATE_INTERVAL = 0.5  # seconds
 GRID_RESOLUTION = 0.2  # meters per grid cell

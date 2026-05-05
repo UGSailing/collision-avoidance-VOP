@@ -1,3 +1,8 @@
+"""
+    DataCollector manages the input connections to the GPS and the obstacle Pi.
+    It is started with it's run method.
+"""
+
 import asyncio
 import serial_asyncio
 import numpy as np
@@ -52,6 +57,7 @@ class DataCollector:
         return objects
 
     async def _obstacle_listener(self):
+        """Continuously listens for obstacle data from the TCP stream, parses it, and appends new obstacle points to points.csv."""
         while True:
             writer = None
             try:
@@ -142,32 +148,8 @@ class DataCollector:
 
             await asyncio.sleep(config.OBSTACLE_RECONNECT_DELAY_S)
 
-    async def _configure_um982(self, writer):
-        """Configure the UM982 serial connection for the GPS."""
-        print("Configuring UM982...")
-        period = 1 / config.GPS_UPDATE_RATE_HZ if config.GPS_UPDATE_RATE_HZ > 0 else 0.05
-        commands = [
-            "MODE ROVER",
-            "MODE HEADING",
-            f"CONFIG COM1 {config.GPS_BAUD}",
-            f"CONFIG COM3 {config.GPS_BAUD}",
-            f"GPGGA COM1 {period}",
-            f"GPRMC COM1 {period}",
-            f"GPHDT COM1 {period}",
-            f"GPGGA COM3 {period}",
-            f"GPRMC COM3 {period}",
-            f"GPHDT COM3 {period}",
-            "SAVECONFIG"
-        ]
-        
-        for cmd in commands:
-            msg = (cmd + "\r\n").encode("ascii")
-            writer.write(msg)
-            await writer.drain()
-            await asyncio.sleep(0.1) # small delay between commands
-        print("UM982 Configuration sent.")
-
     async def _gps_listener(self):
+        """Continuously listens for GPS data from the serial port, parses it, updates latest_gps state, and appends new GPS points to points.csv."""
         while True:
             try:
                 print(f"[setup] Opening {config.GPS_PORT} @ {config.GPS_BAUD} ...")
@@ -186,7 +168,7 @@ class DataCollector:
             write_task = None
             try:
                 # Perform device setup.
-                await self._configure_um982(writer)
+                await gps_utils.configure_um982(writer)
 
                 async def rtcm_writer_task():
                     """Writes RTCM data from queue to Serial"""
@@ -223,28 +205,7 @@ class DataCollector:
                         self.latest_gga_raw = line
 
                     # Parse and update state
-                    gps_updated = False
-
-                    if head.endswith("GGA"):
-                        d = gps_utils.parse_gga(parts)
-                        if d:
-                            if d.get("lat") is not None: self.latest_gps['latitude'] = d["lat"]
-                            if d.get("lon") is not None: self.latest_gps['longitude'] = d["lon"]
-                            gps_updated = True
-
-                    elif head.endswith("RMC"):
-                        d = gps_utils.parse_rmc(parts)
-                        if d:
-                            if d.get("lat") is not None: self.latest_gps['latitude'] = d["lat"]
-                            if d.get("lon") is not None: self.latest_gps['longitude'] = d["lon"]
-                            gps_updated = True
-
-                    elif head.endswith("HDT"):
-                        hdg = gps_utils.parse_hdt(parts)
-                        if hdg is not None:
-                            hdg = (hdg + config.USER_HEADING_OFFSET_DEG) % 360.0
-                            self.latest_gps['heading'] = hdg
-                            gps_updated = True
+                    gps_updated = gps_utils.process_nmea_line(line, self.latest_gps)
 
                     # Log to CSV if we have a valid update
                     if gps_updated and self.latest_gps['latitude'] is not None and self.latest_gps['heading'] is not None:
@@ -283,6 +244,8 @@ class DataCollector:
                     pass
 
     async def run(self, stop_event: asyncio.Event):
+        """Starts the data collection tasks in the class. This will run indefinitely until stop_event is set."""
+
         # We pass a lambda/function to get the latest GGA
         def get_gga():
             return self.latest_gga_raw
