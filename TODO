@@ -8,7 +8,7 @@
 
 ### general
 
-- update the readme
+- update the docs
 
 ### detection
 
@@ -39,7 +39,8 @@ Voor picamera moet aparte installatie met bv. "sudo apt install python3-picamera
 
 ### general
 - testing, testing, testing
-- fix autorun script -> boat main
+- fix autorun script -> boat main? -> also set correctly in docs
+- add logging to a .log file alongside all printing ops
 
 ### data collection
 - multiple object types
