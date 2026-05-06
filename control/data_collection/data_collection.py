@@ -15,13 +15,24 @@ class DataCollector:
         self.csv_lock = asyncio.Lock()
         
         # State shared between tasks
-        self.latest_gps: dict[str, float | None] = {
+        self.latest_gps: dict = {
             'latitude': None,
             'longitude': None,
             'heading': None,
         }
         self.latest_gga_raw = None # For NTRIP uplinks
         self.rtcm_queue = asyncio.Queue(maxsize=100) # RTCM chunks for the GPS
+
+    def fetch_latest_gps_origin(self, df: pd.DataFrame) -> None:
+        """Returns (lat, lon) of the latest GPS row in df, or (None, None) if absent."""
+        gps_rows = df[df['category'] == 'gps']
+        if gps_rows.empty:
+            return
+        gps = gps_rows.loc[gps_rows['id'].idxmax()]
+        self.latest_gps['latitude'] = gps['latitude']
+        self.latest_gps['longitude'] = gps['longitude']
+        self.latest_gps['heading'] = gps['heading']
+        
 
     def _parse_obstacle_line(self, line: str):
         """Parses obstacle payload into (angle_deg, distance_m) tuples."""
@@ -90,7 +101,8 @@ class DataCollector:
                         if config.OBSTACLE_INPUT_DEBUG:
                             print(f"Obstacle input parse skipped: {line}")
                         continue
-
+                    
+                    self.fetch_latest_gps_origin(pd.read_csv(self.run_dir / 'points.csv')) # update latest GPS from file in case GPS task is lagging
                     if None in self.latest_gps.values():
                         continue  # no GPS position yet, skip
 
@@ -114,10 +126,10 @@ class DataCollector:
                             'id': self.camera_id,
                             'category': 'camera',
                             'latitude': lat,
-                            'longitude': lon
+                            'longitude': lon,
+                            'heading': 0.0
                         })
                         self.camera_id += 1
-
                     if not rows:
                         continue
 
