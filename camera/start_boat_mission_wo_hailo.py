@@ -17,10 +17,19 @@ from typing import Any
 import numpy as np
 import yaml
 
-# import can_comms
+""" WEBCAM vanuit root
+python camera/start_boat_mission.py --backend webcam --webcam-left 0 --webcam-right -1 --model camera/yolo_models/duck.pt --single-camera-depth --object-height-m 0.175 --calib-yaml camera/calibration_yamls/camera_calibration.yaml
+"""
+
+""" RPI vanuit /camera
+python3 start_boat_mission_wo_hailo.py --backend pi --camera-left 0 --camera-right 1 --model yolo_models/duck.pt --camera-depth single --object-height-m 0.12 --calib-yaml calibration_yamls/camera_calibration.yaml --duration 60"""
+
+
 from depth_calculation.single_camera_depth_calculation import (
     distance_and_angle_from_bbox,
 )
+
+# Using the configs in config.py
 from config import (
     OBSTACLE_OUTPUT_DEBUG,
     OBSTACLE_PAIR_SEPARATOR,
@@ -33,14 +42,6 @@ from config import (
     OBSTACLE_TCP_SEND_EMPTY_UPDATES,
     OBSTACLE_VALUE_SEPARATOR,
 )
-
-
-""" WEBCAM vanuit root
-python camera/start_boat_mission.py --backend webcam --webcam-left 0 --webcam-right -1 --model camera/yolo_models/duck.pt --single-camera-depth --object-height-m 0.175 --calib-yaml camera/calibration_yamls/camera_calibration.yaml
-"""
-
-""" RPI vanuit /camera
-python3 start_boat_mission_wo_hailo.py --backend pi --camera-left 0 --camera-right 1 --model yolo_models/duck.pt --camera-depth single --object-height-m 0.12 --calib-yaml calibration_yamls/camera_calibration.yaml --duration 60"""
 
 try:
     import cv2
@@ -196,6 +197,8 @@ def import_picamera_runtime() -> None:
 def load_intrinsics_from_yaml(
     calib_yaml_path: Path,
 ) -> tuple[float, float, float, float]:
+    """Loads the camera intrinsics. By default in calibration_yamls/camera_calibration.yaml"""
+
     with calib_yaml_path.open("r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
 
@@ -276,6 +279,8 @@ def setup_logging(run_dir: Path) -> None:
 
 
 def build_pi_camera(camera_id: int, width: int, height: int, fps: int) -> Any:
+    """Setting up the camera on the Raspberry Pi"""
+
     camera = Picamera2(camera_id)
     config = camera.create_video_configuration(
         main={"size": (width, height), "format": "RGB888"},
@@ -288,6 +293,7 @@ def build_pi_camera(camera_id: int, width: int, height: int, fps: int) -> Any:
 def start_pi_recording(
     camera: Any, output_path: Path, bitrate: int = 8_000_000
 ) -> None:
+    """Let a camera start recording"""
     output_path.parent.mkdir(parents=True, exist_ok=True)
     encoder = H264Encoder(bitrate=bitrate)
     output = FfmpegOutput(str(output_path))
@@ -325,7 +331,12 @@ def build_webcam(index: int, width: int, height: int, fps: int) -> Any:
     return cam
 
 
-def build_webcam_writer(path: Path, width: int, height: int, fps: int) -> Any:
+def build_video_writer(path: Path, width: int, height: int, fps: int) -> Any:
+    """Create an OpenCV writer for raw or annotated mp4 output.
+
+    Next to webcam use, this helper is also used in the Pi
+    backend to write the annotated recordings alongside the Picamera2 raw file.
+    """
     if cv2 is None:
         raise SystemExit(
             "OpenCV is required for --backend webcam. Install opencv-python."
@@ -415,7 +426,6 @@ def enrich_detections_with_single_camera_depth(
 
 def main() -> int:
     args = create_parser().parse_args()
-
     import_yolo()
     if args.backend == "pi":
         try:
@@ -458,6 +468,7 @@ def main() -> int:
                 f"Could not load intrinsics from --calib-yaml={args.calib_yaml}: {exc}"
             ) from exc
 
+        # Retrieving the focal length and principal point of the camera
         fx, fy, cx, cy = depth_intrinsics
         logging.info(
             "Single-camera depth enabled with intrinsics from %s | fx=%.3f fy=%.3f cx=%.3f cy=%.3f",
@@ -468,8 +479,10 @@ def main() -> int:
             cy,
         )
     elif args.camera_depth == "dual":
-        # Implement stereo depth calculation here
-        print("here")
+        # Stereo depth calculation is momentarily not implemented here, but could be done by using the file in the depth_calculation/ dir.
+        print(
+            "Caution! Using dual camera depth calculation, which is not implemented yet.\n"
+        )
 
     left_cam = None
     right_cam = None
@@ -482,6 +495,7 @@ def main() -> int:
     right_name = "right"
     tcp_server: ObstacleTcpServer | None = None
 
+    # Starting the tcp connection
     if OBSTACLE_TCP_ENABLED:
         tcp_server = ObstacleTcpServer(
             host=OBSTACLE_TCP_BIND_HOST,
@@ -492,8 +506,6 @@ def main() -> int:
             debug=OBSTACLE_OUTPUT_DEBUG,
         )
         tcp_server.start()
-
-    # can = can_comms.CANComms()
 
     if args.backend == "pi":
         left_name = f"pi:{args.camera_left}"
@@ -507,13 +519,17 @@ def main() -> int:
         right_cam.start()
         start_pi_recording(left_cam, left_video)
         start_pi_recording(right_cam, right_video)
-        left_annot_writer = build_webcam_writer(
+
+        # Pi records the raw camera stream via Picamera2; the OpenCV writer is
+        # only used for the annotated video that includes YOLO overlays.
+        left_annot_writer = build_video_writer(
             left_annot_video, args.width, args.height, args.fps
         )
-        right_annot_writer = build_webcam_writer(
+        right_annot_writer = build_video_writer(
             right_annot_video, args.width, args.height, args.fps
         )
 
+    # When testing on laptop without Pi
     elif args.backend == "webcam":
         left_video = cam0_dir / "recording.mp4"
         right_video = cam1_dir / "recording.mp4"
@@ -571,12 +587,16 @@ def main() -> int:
                 if elapsed >= args.duration:
                     break
 
+                # Keep the logging loop close to the requested interval without
+                # busy-waiting when the next sample is not due yet.
                 if now < next_log_t:
                     time.sleep(min(0.01, next_log_t - now))
                     continue
 
                 ts_utc = datetime.utcnow().isoformat(timespec="milliseconds") + "Z"
 
+                # Mock mode only emits empty payloads, which lets the rest of the
+                # pipeline and TCP logging run without any active camera input.
                 if args.backend == "mock":
                     payload = {
                         "timestamp_utc": ts_utc,
@@ -587,6 +607,9 @@ def main() -> int:
                     if left_cam is None:
                         raise RuntimeError("Left camera not initialized.")
 
+                    # The Pi backend reads frames directly from Picamera2.
+                    # The webcam backend uses OpenCV's VideoCapture and lazily
+                    # opens the raw video writer once the actual frame size is known.
                     if args.backend == "pi":
                         left_frame = left_cam.capture_array("main")[:, :, ::-1]
                     else:
@@ -597,14 +620,18 @@ def main() -> int:
                             continue
 
                         if left_writer is None:
+                            # Create the writer lazily so it matches the actual
+                            # frame size returned by OpenCV.
                             left_h, left_w = left_frame.shape[:2]
-                            left_writer = build_webcam_writer(
+                            left_writer = build_video_writer(
                                 left_video, left_w, left_h, args.fps
                             )
 
                         if left_writer is not None:
                             left_writer.write(left_frame)
 
+                    # Run detection on the left frame first so detections from both
+                    # cameras can be merged into one payload.
                     detections, left_annotated = detect(
                         left_frame, model, args.conf, left_name
                     )
@@ -620,8 +647,9 @@ def main() -> int:
                             ok_right, right_frame = right_cam.read()
                             if ok_right:
                                 if right_writer is None:
+                                    # Same lazy setup as the left webcam path.
                                     right_h, right_w = right_frame.shape[:2]
-                                    right_writer = build_webcam_writer(
+                                    right_writer = build_video_writer(
                                         right_video, right_w, right_h, args.fps
                                     )
 
@@ -641,6 +669,9 @@ def main() -> int:
                             if right_annot_writer is not None:
                                 right_annot_writer.write(right_annotated)
 
+                    # Optional monocular depth enrichment happens after detection so
+                    # the TCP payload and JSON log get distance/angle fields when
+                    # the calibration intrinsics were provided.
                     if args.camera_depth == "single":
                         if depth_intrinsics is None:
                             raise RuntimeError("Depth intrinsics were not initialized.")
@@ -661,6 +692,7 @@ def main() -> int:
                         "detections": detections,
                     }
 
+                # Convert the structured detections into the TCP format.
                 obstacle_payload = build_obstacle_tcp_payload(payload["detections"])
                 if tcp_server is not None and obstacle_payload is not None:
                     print(f"Sent to tcp: {obstacle_payload}")
@@ -670,14 +702,11 @@ def main() -> int:
 
                 log_file.write(json.dumps(payload) + "\n")
                 log_file.flush()
-
-                # can.send_objects(payload)
-
                 next_log_t += args.log_interval
 
         finally:
-            # can.close()
-
+            # Always release hardware and writers so the next run starts cleanly,
+            # even if the loop exits because of a signal or runtime error.
             if args.backend == "pi":
                 if left_cam is not None:
                     stop_pi_camera(left_cam)

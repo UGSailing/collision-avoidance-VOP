@@ -7,7 +7,7 @@ The control system has two main execution modes, depending on deployment vs test
 ### Interactive manual mode (`main.py`)
 This mode provides a simple CLI and launches the path-finding visualizations.
 - **Usage:** Boot manually using Python: `python control/main.py`
-- **Features:** 
+- **Features:**
   - Allows entering `destination <lat> <lon>` manually in the console.
   - Generates a local dashboard when you type `map` to view the live GPS trajectory, target coordinates, and obstacle grid in your browser.
 
@@ -17,28 +17,16 @@ Used in production when the Pi runs headless on the boat.
 - **Features:** Designed to run without terminal attached.
 
 ## 2. Running the Camera Node
-TODO verify generated text 
+You can manually start run_mission.sh, which activates the virtual environment and runs `start_boat_mission_wo_hailo.py`.
+You can also use the autorun file on the Raspberry Pi: `autostart_VOP.service`, which is already put in the right directory on the Pi we use. Just make sure to enable it with `sudo systemctl enable autostart_VOP.service` and it will start on boot. If you want to autorun on a new Pi, follow the steps in `setup.md`.
 
-The camera system uses the `start_boat_mission.py` script. It takes optional arguments to control mock mode, video indexing, and dual/single camera modes. 
-
-### Standard Dual Camera Startup
-Starts recording and detecting objects using local cameras (e.g. video0 and video1).
-```bash
-cd camera/
-python start_boat_mission.py --camera-left 0 --camera-right 1 --duration 60 --depth-calculation dual-camera
-```
-
-### Testing without Hardware (Mock Mode)
-Run the software loop and write data logs without connected cameras. The log will insert `"-"` placeholders for missing image parameters and bounding boxes.
-```bash
-python start_boat_mission.py --mock-no-cameras --duration 10
-```
+The camera system uses the `start_boat_mission_wo_hailo.py` file. It takes optional arguments to control the type of backend (pi/webcam), the duration of the run, the number of fps etc. By default, it runs a 60-second mission using the local cameras (video0 and video1) with monocular depth estimation.
 
 ### Output Files
 When a mission finishes, output is stored under `camera/recordings/<timestamp>/`:
 - `camera0.mp4` / `camera1.mp4`: Captured footage.
 - `mission.log`: Overall logging for startup, timing, errors.
-- `detections.jsonl`: The core detection log. 
+- `detections.jsonl`: The core detection log.
 
 **Example line in `detections.jsonl`:**
 ```json
@@ -46,8 +34,7 @@ When a mission finishes, output is stored under `camera/recordings/<timestamp>/`
 ```
 
 ### Tuning Detection Settings
-- **Camera Config:** The script targets `camera/calibration_yamls/calib_cam0.yaml` by default to grab focal length data.
-- **Label Mapping:** It remaps specific outputs using dictionary keys, defaulting to `{"bird": "duck"}`.
+- **Camera Config:** `start_boat_mission_wo_hailo.py` uses `camera/calibration_yamls/camera_calibration.yaml` by default to grab focal length data. 
 - **Known Distance Metrics:** Monocular depth runs off known object widths. You can inject specific sizes based on deployment environments by adjusting:
   ```bash
   --object-widths-json '{"duck":0.25, "buoy":0.30}'
