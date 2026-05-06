@@ -1,3 +1,8 @@
+"""
+    DataCollector manages the input connections to the GPS and the obstacle Pi.
+    It is started with it's run method.
+"""
+
 import asyncio
 import serial_asyncio
 import numpy as np
@@ -52,6 +57,7 @@ class DataCollector:
         return objects
 
     async def _obstacle_listener(self):
+        """Continuously listens for obstacle data from the TCP stream, parses it, and appends new obstacle points to points.csv."""
         while True:
             writer = None
             try:
@@ -142,142 +148,104 @@ class DataCollector:
 
             await asyncio.sleep(config.OBSTACLE_RECONNECT_DELAY_S)
 
-    async def _setup_um982(self, writer):
-        """Sends initial configuration to UM982 via the serial writer."""
-        print("Configuring UM982...")
-        period = 1 / config.GPS_UPDATE_RATE_HZ if config.GPS_UPDATE_RATE_HZ > 0 else 0.05
-        commands = [
-            "MODE ROVER",
-            "MODE HEADING",
-            f"CONFIG COM1 {config.GPS_BAUD}",
-            f"CONFIG COM3 {config.GPS_BAUD}",
-            f"GPGGA COM1 {period}",
-            f"GPRMC COM1 {period}",
-            f"GPHDT COM1 {period}",
-            f"GPGGA COM3 {period}",
-            f"GPRMC COM3 {period}",
-            f"GPHDT COM3 {period}",
-            "SAVECONFIG"
-        ]
-        
-        for cmd in commands:
-            msg = (cmd + "\r\n").encode("ascii")
-            writer.write(msg)
-            await writer.drain()
-            await asyncio.sleep(0.1) # small delay between commands
-        print("UM982 Configuration sent.")
-
     async def _gps_listener(self):
-        try:
-            reader, writer = await serial_asyncio.open_serial_connection(
-                url=config.GPS_PORT, baudrate=config.GPS_BAUD
-            )
-            print("GPS Serial connection established.")
-        except Exception as e:
-            print(f"Warning: GPS not connected. {e}")
-            return
-
-        # Perform device setup
-        await self._setup_um982(writer)
-
-        async def rtcm_writer_task():
-            """Writes RTCM data from queue to Serial"""
-            while True:
-                data = await self.rtcm_queue.get()
-                try:
-                    writer.write(data)
-                    await writer.drain()
-                except Exception as e:
-                    print(f"Error writing RTCM to serial: {e}")
-
-        # Start the RTCM writer background task
-        write_task = asyncio.create_task(rtcm_writer_task())
-
-        # Buffer for reading lines
-        # StreamReader.readline() is convenient but might buffer.
-        
-        try:
-            while True:
-                try:
-                    raw_line = await reader.readline()
-                except Exception:
-                    break
-                    
-                line = raw_line.decode("ascii", errors="ignore").strip()
-                if not line:
-                    continue
-
-                if not gps_utils.looks_like_nmea(line) or not gps_utils.nmea_checksum_ok(line):
-                    continue
-
-                parts = line.split(",")
-                head = parts[0]
-                
-                # Keep raw GGA for NTRIP VRS
-                if head.endswith("GGA"):
-                    self.latest_gga_raw = line
-
-                # Parse and update state
-                parsed_data = {}
-                gps_updated = False
-
-                if head.endswith("GGA"):
-                    d = gps_utils.parse_gga(parts)
-                    if d:
-                        if d.get("lat") is not None: self.latest_gps['latitude'] = d["lat"]
-                        if d.get("lon") is not None: self.latest_gps['longitude'] = d["lon"]
-                        gps_updated = True
-
-                elif head.endswith("RMC"):
-                    d = gps_utils.parse_rmc(parts)
-                    if d:
-                        if d.get("lat") is not None: self.latest_gps['latitude'] = d["lat"]
-                        if d.get("lon") is not None: self.latest_gps['longitude'] = d["lon"]
-                        gps_updated = True
-
-                elif head.endswith("HDT"):
-                    hdg = gps_utils.parse_hdt(parts)
-                    if hdg is not None:
-                        hdg = (hdg + config.USER_HEADING_OFFSET_DEG) % 360.0
-                        self.latest_gps['heading'] = hdg
-                        gps_updated = True
-
-                # Log to CSV if we have a valid update
-                if gps_updated and self.latest_gps['latitude'] is not None and self.latest_gps['heading'] is not None:
-                    new_row = pd.DataFrame([{
-                        'id': self.gps_id,
-                        'category': 'gps',
-                        'latitude': self.latest_gps['latitude'],
-                        'longitude': self.latest_gps['longitude'],
-                        'heading': self.latest_gps['heading'],
-                    }])
-                    async with self.csv_lock:
-                         await asyncio.to_thread(
-                            new_row.to_csv,
-                            self.run_dir / 'points.csv',
-                            mode='a', header=False, index=False
-                        )
-                    self.gps_id += 1
-
-        except asyncio.CancelledError:
-            pass
-        except Exception as e:
-            print(f"GPS Loop Error: {e}")
-        finally:
-            if not write_task.done():
-                write_task.cancel()
+        """Continuously listens for GPS data from the serial port, parses it, updates latest_gps state, and appends new GPS points to points.csv."""
+        while True:
             try:
-                await write_task
+                print(f"[setup] Opening {config.GPS_PORT} @ {config.GPS_BAUD} ...")
+                reader, writer = await serial_asyncio.open_serial_connection(
+                    url=config.GPS_PORT, baudrate=config.GPS_BAUD
+                )
+                print("GPS Serial connection established.")
             except asyncio.CancelledError:
-                pass
-                
-            writer.close()
+                raise
+            except Exception as e:
+                print(f"[setup] Could not open {config.GPS_PORT}: {e}")
+                print("Hint: On Raspberry Pi, ensure your user is in the 'dialout' group and the device path is correct.")
+                await asyncio.sleep(config.OBSTACLE_RECONNECT_DELAY_S)
+                continue
+
+            write_task = None
             try:
-                await writer.wait_closed()
-            except:
-                pass
+                # Perform device setup.
+                await gps_utils.configure_um982(writer)
+
+                async def rtcm_writer_task():
+                    """Writes RTCM data from queue to Serial"""
+                    while True:
+                        data = await self.rtcm_queue.get()
+                        try:
+                            writer.write(data)
+                            await writer.drain()
+                        except Exception as e:
+                            print(f"Error writing RTCM to serial: {e}")
+
+                # Start the RTCM writer background task.
+                write_task = asyncio.create_task(rtcm_writer_task())
+
+                # StreamReader.readline() is convenient but might buffer.
+                while True:
+                    try:
+                        raw_line = await reader.readline()
+                    except Exception:
+                        raise ConnectionError("GPS serial stream closed")
+
+                    line = raw_line.decode("ascii", errors="ignore").strip()
+                    if not line:
+                        continue
+
+                    if not gps_utils.looks_like_nmea(line) or not gps_utils.nmea_checksum_ok(line):
+                        continue
+
+                    parts = line.split(",")
+                    head = parts[0]
+
+                    # Keep raw GGA for NTRIP VRS
+                    if head.endswith("GGA"):
+                        self.latest_gga_raw = line
+
+                    # Parse and update state
+                    gps_updated = gps_utils.process_nmea_line(line, self.latest_gps)
+
+                    # Log to CSV if we have a valid update
+                    if gps_updated and self.latest_gps['latitude'] is not None and self.latest_gps['heading'] is not None:
+                        new_row = pd.DataFrame([{
+                            'id': self.gps_id,
+                            'category': 'gps',
+                            'latitude': self.latest_gps['latitude'],
+                            'longitude': self.latest_gps['longitude'],
+                            'heading': self.latest_gps['heading'],
+                        }])
+                        async with self.csv_lock:
+                            await asyncio.to_thread(
+                                new_row.to_csv,
+                                self.run_dir / 'points.csv',
+                                mode='a', header=False, index=False
+                            )
+                        self.gps_id += 1
+
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                print(f"GPS Loop Error: {e}")
+                await asyncio.sleep(config.OBSTACLE_RECONNECT_DELAY_S)
+            finally:
+                if write_task is not None and not write_task.done():
+                    write_task.cancel()
+                    try:
+                        await write_task
+                    except asyncio.CancelledError:
+                        pass
+
+                writer.close()
+                try:
+                    await writer.wait_closed()
+                except Exception:
+                    pass
 
     async def run(self, stop_event: asyncio.Event):
+        """Starts the data collection tasks in the class. This will run indefinitely until stop_event is set."""
+
         # We pass a lambda/function to get the latest GGA
         def get_gga():
             return self.latest_gga_raw

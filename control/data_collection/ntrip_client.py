@@ -1,3 +1,7 @@
+"""
+    NTRIP Client that connects to an NTRIP caster, sends GGA (if available), and puts received RTCM data into a provided asyncio.Queue to send to the serial port.
+"""
+
 import asyncio
 import base64
 import time

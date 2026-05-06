@@ -1,6 +1,11 @@
+"""
+    A simple path planner that reads the current location and destination from points.csv, and writes a path to path.csv. 
+    The path is currently just a straight line between the latest GPS point and the latest destination point, so it ignores objects for now.
+"""
+
 import pandas as pd
 
-def update_path(run_dir, grid=None):
+def update_path(run_dir, grid, mapper):
     """Recomputes the path from points.csv and write it to path.csv."""
     path = get_path_points(pd.read_csv(run_dir / 'points.csv'))
     pd.DataFrame(path, columns=['latitude', 'longitude']).to_csv(run_dir / 'path.csv', index=False)

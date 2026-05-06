@@ -1,0 +1,25 @@
+2026-04-22 15:27:30,345 | INFO | Run folder: /home/mario/Documents/collision-avoidance-VOP/camera/recordings/20260422_152730
+2026-04-22 15:27:30,345 | INFO | Backend: pi
+2026-04-22 15:27:30,345 | INFO | Model: yolo_models/duck.pt
+2026-04-22 15:27:30,345 | INFO | Resolution/FPS: 1920x1080 @ 5
+2026-04-22 15:27:30,345 | INFO | Log interval: 0.2 sec
+2026-04-22 15:27:30,640 | INFO | Single-camera depth enabled with intrinsics from calibration_yamls/camera_calibration.yaml | fx=2018.314 fy=2009.564 cx=955.903 cy=484.226
+2026-04-22 15:27:30,640 | INFO | [TCP] listening on 0.0.0.0:9000
+2026-04-22 15:27:30,818 | INFO | Initialization successful.
+2026-04-22 15:27:30,818 | INFO | Camera now open.
+2026-04-22 15:27:30,820 | INFO | Camera configuration has been adjusted!
+2026-04-22 15:27:30,821 | INFO | Configuration successful!
+2026-04-22 15:27:30,842 | INFO | Initialization successful.
+2026-04-22 15:27:30,842 | INFO | Camera now open.
+2026-04-22 15:27:30,844 | INFO | Camera configuration has been adjusted!
+2026-04-22 15:27:30,845 | INFO | Configuration successful!
+2026-04-22 15:27:30,862 | INFO | Camera started
+2026-04-22 15:27:31,363 | INFO | Camera started
+2026-04-22 15:27:31,587 | INFO | Opened writer /home/mario/Documents/collision-avoidance-VOP/camera/recordings/20260422_152730/camera0_recording/recording_annotated.mp4 with codec mp4v (1920x1080 @ 5fps)
+2026-04-22 15:27:31,588 | INFO | Opened writer /home/mario/Documents/collision-avoidance-VOP/camera/recordings/20260422_152730/camera1_recording/recording_annotated.mp4 with codec mp4v (1920x1080 @ 5fps)
+2026-04-22 15:28:05,812 | INFO | Signal 2 received, stopping...
+2026-04-22 15:28:07,330 | INFO | Camera stopped
+2026-04-22 15:28:08,335 | INFO | Camera closed successfully.
+2026-04-22 15:28:08,342 | INFO | Camera stopped
+2026-04-22 15:28:09,546 | INFO | Camera closed successfully.
+2026-04-22 15:28:09,558 | INFO | Finished run.

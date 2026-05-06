@@ -1,8 +1,6 @@
 # To do
 
 ## Reporting
-- project goals
-- presentation
 - report
 - poster
 
@@ -10,7 +8,7 @@
 
 ### general
 
-- update the readme
+- update the docs
 
 ### detection
 
@@ -41,10 +39,16 @@ Voor picamera moet aparte installatie met bv. "sudo apt install python3-picamera
 
 ### general
 - testing, testing, testing
+- fix autorun script -> boat main? -> also set correctly in docs
+- add logging to a .log file alongside all printing ops
 
 ### data collection
-- other ways to store objects
+- multiple object types
 
 ### path planning
 - granular occupancy map (with different strengths depending on object type?)
 - better path algorithm -> by UGS
+- commented out code in occupancy mapper?
+
+### path following
+- variable motor speed

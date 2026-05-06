@@ -1,0 +1,18 @@
+{"timestamp_utc": "2026-04-22T13:14:44.965Z", "elapsed_s": 0.0, "detections": []}
+{"timestamp_utc": "2026-04-22T13:14:48.433Z", "elapsed_s": 3.468, "detections": [{"camera": "pi:0", "label": "duck", "confidence": 0.8769, "bbox_xyxy": [829.99, 66.2, 1291.38, 514.98], "distance_m": 0.784, "angle_deg": 2.972}]}
+{"timestamp_utc": "2026-04-22T13:14:50.081Z", "elapsed_s": 5.116, "detections": []}
+{"timestamp_utc": "2026-04-22T13:14:51.765Z", "elapsed_s": 6.8, "detections": []}
+{"timestamp_utc": "2026-04-22T13:14:53.394Z", "elapsed_s": 8.428, "detections": []}
+{"timestamp_utc": "2026-04-22T13:14:55.094Z", "elapsed_s": 10.129, "detections": [{"camera": "pi:1", "label": "duck", "confidence": 0.6679, "bbox_xyxy": [1321.37, 659.47, 1908.56, 1080.0], "distance_m": 0.836, "angle_deg": 18.084}]}
+{"timestamp_utc": "2026-04-22T13:14:56.655Z", "elapsed_s": 11.69, "detections": []}
+{"timestamp_utc": "2026-04-22T13:14:58.341Z", "elapsed_s": 13.376, "detections": []}
+{"timestamp_utc": "2026-04-22T13:14:59.926Z", "elapsed_s": 14.96, "detections": [{"camera": "pi:0", "label": "duck", "confidence": 0.7693, "bbox_xyxy": [991.26, 151.53, 1301.93, 507.76], "distance_m": 0.987, "angle_deg": 5.397}]}
+{"timestamp_utc": "2026-04-22T13:15:01.482Z", "elapsed_s": 16.517, "detections": [{"camera": "pi:0", "label": "duck", "confidence": 0.5575, "bbox_xyxy": [1121.15, 178.04, 1487.1, 494.66], "distance_m": 1.111, "angle_deg": 9.789}]}
+{"timestamp_utc": "2026-04-22T13:15:03.058Z", "elapsed_s": 18.093, "detections": []}
+{"timestamp_utc": "2026-04-22T13:15:04.632Z", "elapsed_s": 19.667, "detections": [{"camera": "pi:0", "label": "duck", "confidence": 0.524, "bbox_xyxy": [1109.31, 273.56, 1414.54, 533.66], "distance_m": 1.352, "angle_deg": 8.622}]}
+{"timestamp_utc": "2026-04-22T13:15:06.235Z", "elapsed_s": 21.27, "detections": [{"camera": "pi:0", "label": "duck", "confidence": 0.5646, "bbox_xyxy": [1113.61, 278.03, 1412.65, 533.78], "distance_m": 1.375, "angle_deg": 8.655}]}
+{"timestamp_utc": "2026-04-22T13:15:07.772Z", "elapsed_s": 22.807, "detections": []}
+{"timestamp_utc": "2026-04-22T13:15:09.323Z", "elapsed_s": 24.358, "detections": []}
+{"timestamp_utc": "2026-04-22T13:15:10.927Z", "elapsed_s": 25.962, "detections": []}
+{"timestamp_utc": "2026-04-22T13:15:12.565Z", "elapsed_s": 27.6, "detections": []}
+{"timestamp_utc": "2026-04-22T13:15:14.090Z", "elapsed_s": 29.124, "detections": []}

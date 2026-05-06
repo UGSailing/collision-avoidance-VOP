@@ -1,5 +1,35 @@
-# NMEA parsing utilities
-import numpy as np
+"""
+    GPS / NMEA utilities.
+"""
+
+import asyncio
+import config
+
+async def configure_um982(writer):
+    """Configure the UM982 serial connection for the GPS."""
+    print("Configuring UM982...")
+    period = 1 / config.GPS_UPDATE_RATE_HZ if config.GPS_UPDATE_RATE_HZ > 0 else 0.05
+    commands = [
+        "MODE ROVER",
+        "MODE HEADING",
+        f"CONFIG COM1 {config.GPS_BAUD}",
+        f"CONFIG COM3 {config.GPS_BAUD}",
+        f"GPGGA COM1 {period}",
+        f"GPRMC COM1 {period}",
+        f"GPHDT COM1 {period}",
+        f"GPGGA COM3 {period}",
+        f"GPRMC COM3 {period}",
+        f"GPHDT COM3 {period}",
+        "SAVECONFIG"
+    ]
+    
+    for cmd in commands:
+        msg = (cmd + "\r\n").encode("ascii")
+        writer.write(msg)
+        await writer.drain()
+        await asyncio.sleep(0.1) # small delay between commands
+
+    print("UM982 Configuration sent.")
 
 def nmea_checksum_ok(line: str) -> bool:
     if "*" not in line:
@@ -74,3 +104,36 @@ def parse_hdt(parts):
     if len(parts) < 3: return None
     try: return float(parts[1]) if parts[1] else None
     except: return None
+
+def process_nmea_line(line: str, latest_gps: dict) -> bool:
+    """
+    Parses a NMEA line and updates the state dictionary.
+    Returns True if the GPS state was updated, False otherwise.
+    """
+    parts = line.split(",")
+    head = parts[0]
+    
+    gps_updated = False
+
+    if head.endswith("GGA"):
+        d = parse_gga(parts)
+        if d:
+            if d.get("lat") is not None: latest_gps['latitude'] = d["lat"]
+            if d.get("lon") is not None: latest_gps['longitude'] = d["lon"]
+            gps_updated = True
+
+    elif head.endswith("RMC"):
+        d = parse_rmc(parts)
+        if d:
+            if d.get("lat") is not None: latest_gps['latitude'] = d["lat"]
+            if d.get("lon") is not None: latest_gps['longitude'] = d["lon"]
+            gps_updated = True
+
+    elif head.endswith("HDT"):
+        hdg = parse_hdt(parts)
+        if hdg is not None:
+            hdg = (hdg + config.USER_HEADING_OFFSET_DEG) % 360.0
+            latest_gps['heading'] = hdg
+            gps_updated = True
+
+    return gps_updated

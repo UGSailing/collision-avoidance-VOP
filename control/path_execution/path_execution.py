@@ -1,3 +1,8 @@
+"""
+    This module implements the PathFollower class, which is responsible for reading the planned path from path.csv, calculating the appropriate rudder angle based on the boat's current GPS position and heading, and sending commands to the ESP32 autopilot. 
+    It uses a lookahead mechanism to blend multiple upcoming waypoints for smoother steering and includes a turn feed-forward term to anticipate bends in the path.
+"""
+
 import pandas as pd
 import math
 import time
@@ -235,7 +240,7 @@ class PathFollower:
             print(f"Execution Error: {e}")
 
     def _build_autopilot_message(self, target_angle: Union[int, float], target_thrust: Union[int, float]) -> str:
-        
+        """Builds the command message to send to the ESP32, ensuring values are within configured limits. Only needs to be used in _send_autopilot_command."""
         angle = max(-config.MAX_RUDDER_ANGLE_DEG, min(config.MAX_RUDDER_ANGLE_DEG, float(target_angle)))
         thrust = max(-1.0, min(1.0, float(target_thrust)))
 
@@ -243,6 +248,7 @@ class PathFollower:
         return f"{angle:.2f},{thrust:.3f}\n"
 
     def _send_autopilot_command(self, target_angle: Union[int, float], target_thrust: Union[int, float]) -> None:
+        """Sends a command to the ESP32 controller."""
         msg = self._build_autopilot_message(target_angle, target_thrust)
         wire = msg.encode("ascii")
 
