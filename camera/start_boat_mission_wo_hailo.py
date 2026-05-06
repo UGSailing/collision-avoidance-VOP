@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Simple mission runtime: record cameras + YOLO logging (no depth)."""
+"""Main file to run the camera detection system."""
 
 from __future__ import annotations
 
@@ -17,12 +17,12 @@ from typing import Any
 import numpy as np
 import yaml
 
+""" RPI vanuit /camera
+python3 start_boat_mission_wo_hailo.py --backend pi --camera-left 0 --camera-right 1 --model yolo_models/duck.pt --camera-depth single --object-height-m 0.175 --calib-yaml calibration_yamls/camera_calibration.yaml --duration 60"""
+
 """ WEBCAM vanuit root
 python camera/start_boat_mission.py --backend webcam --webcam-left 0 --webcam-right -1 --model camera/yolo_models/duck.pt --single-camera-depth --object-height-m 0.175 --calib-yaml camera/calibration_yamls/camera_calibration.yaml
 """
-
-""" RPI vanuit /camera
-python3 start_boat_mission_wo_hailo.py --backend pi --camera-left 0 --camera-right 1 --model yolo_models/duck.pt --camera-depth single --object-height-m 0.12 --calib-yaml calibration_yamls/camera_calibration.yaml --duration 60"""
 
 
 from depth_calculation.single_camera_depth_calculation import (

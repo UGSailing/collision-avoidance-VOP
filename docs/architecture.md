@@ -38,16 +38,16 @@ Whenever a run is started, a new directory is created locally (`/runs/YYYY-MM-DD
 - **`visualisation/`**: Houses `live_map.py`, which launches a local dashboard via Dash to visualize the path, boat coordinates, geofence and obstables interactively.
 
 ### Camera
-- **`calib_good_calibration_imgs/`**: A directory with a subset of images that is particularly better for the camera calibration process.
-- **`calibration_npzs/`**: Contains the calibration file for dual camera calibration in npz format, which can be used for rectification.
-- **`calibration_yamls/camera_calibration.yaml`**: Contains the intrinsic parameters of the camera, used for rectification.
-- **`calibrations/`**: Different calibration files: single vs. dual camera calibration. Also contains rectification files for both single and dual camera.
-- **`captures/`**: A directory to store photos taken of the checkboard pattern by the camera of the boat for camera calibration.
-- **`depth_calculation/`**: Contains the scripts to calculate depth from the detected bounding boxes. This includes both single camera and dual camera depth calculation.
-- **`dual_calib_images/`**: A directory with the images taken for dual camera calibration. These images are taken with both cameras at the same time, and they are used to calculate the extrinsic parameters between the two cameras.
-- **`dual_calib_images_rectified/`**: A directory with the rectified images from the dual camera calibration.
-- **`images_to_test_models/`**: A directory with images from the Internet and images of the duck to test the different YOLO models on. These images are not all taken from the boat's camera, so they may not be representative of the actual detection performance on the boat. They are only meant to be used for testing the models on a variety of objects and backgrounds.
-- **`prototype_Hailo_pipeline/`**: Files to run different versions of Hailo detection on the AI Hat+.
-- **`recordings/`**: A directory to store the recordings of the camera feed and the corresponding detections in jsonl format. Each recording is stored in a subdirectory named with the timestamp of when the recording was started.
-- **`separate_files/`**: Contains separate scripts for different parts of the camera pipeline, e.g. a file to test the TCP connection to the Control Pi.
-- **`yolo_models/`**: Contains the models you can choose between to run object detection. E.g. duck.pt contains the trained weights for the duck detection model.
+- **`camera/calib_good_calibration_imgs/`**: A directory with a subset of images that is particularly better for the camera calibration process.
+- **`camera/calibration_npzs/`**: Contains the calibration file for dual camera calibration in npz format, which can be used for rectification.
+- **`camera/calibration_yamls/camera_calibration.yaml`**: Contains the intrinsic parameters of the camera, used for rectification.
+- **`camera/calibrations/`**: Different calibration files: single vs. dual camera calibration. Also contains rectification files for both single and dual camera.
+- **`camera/captures/`**: A directory to store photos taken of the checkboard pattern by the camera of the boat for camera calibration.
+- **`camera/depth_calculation/`**: Contains the scripts to calculate depth from the detected bounding boxes. This includes both single camera and dual camera depth calculation.
+- **`camera/dual_calib_images/`**: A directory with the images taken for dual camera calibration. These images are taken with both cameras at the same time, and they are used to calculate the extrinsic parameters between the two cameras.
+- **`camera/dual_calib_images_rectified/`**: A directory with the rectified images from the dual camera calibration.
+- **`camera/images_to_test_models/`**: A directory with images from the Internet and images of the duck to test the different YOLO models on. These images are not all taken from the boat's camera, so they may not be representative of the actual detection performance on the boat. They are only meant to be used for testing the models on a variety of objects and backgrounds.
+- **`camera/prototype_Hailo_pipeline/`**: Files to run different versions of Hailo detection on the AI Hat+.
+- **`camera/recordings/`**: A directory to store the recordings of the camera feed and the corresponding detections in jsonl format. Each recording is stored in a subdirectory named with the timestamp of when the recording was started.
+- **`camera/separate_files/`**: Contains separate scripts for different parts of the camera pipeline, e.g. a file to test the TCP connection to the Control Pi.
+- **`camera/yolo_models/`**: Contains the models you can choose between to run object detection. E.g. duck.pt contains the trained weights for the duck detection model.

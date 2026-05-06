@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Hailo version of start_boat_mission_wo_hailo.py
+#
+#
 # VERGEET NIET DE source setup... vanuit hailo als venv te draaien!!!!!
 # Linux examples:
 # cd ~/Documents/collision-avoidance-VOP/camera
