@@ -99,6 +99,21 @@ if __name__ == "__main__":
     # }
     # pd.DataFrame(data).to_csv(points_file, index=False)
 
+
+    # data voor demo in blaarmeersen
+    data = {
+        'id': [0],
+        'category': ['destination'],
+        'latitude': [51.044674],
+        'longitude': [3.681999],
+        'heading': [0.0]
+    }
+    pd.DataFrame(data).to_csv(points_file, index=False)
+
+
+
+
+
     # threads
     stop_event = threading.Event()
     threading.Thread(target=collection_loop, args=(stop_event, run_dir), daemon=True).start()
