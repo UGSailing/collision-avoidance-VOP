@@ -8,3 +8,4 @@ pyserial
 pyserial-asyncio
 pynmea2
 odrive
+casadi
