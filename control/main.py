@@ -8,8 +8,8 @@ from pathlib import Path
 from datetime import datetime
 import config
 from data_collection import DataCollector
-from path_planning import update_path, OccupancyMapper
-from path_execution import PathFollower
+from path_planning import update_path, update_trajectory, OccupancyMapper
+from path_execution import PathFollowerV2
 
 
 def collection_loop(stop_event: threading.Event, run_dir: Path):
@@ -38,7 +38,8 @@ def planning_loop(stop_event: threading.Event, run_dir: Path):
             grid = mapper.update_grid(run_dir / 'points.csv')
             
             # 2. pass BOTH the grid and the mapper to keep origins perfectly synced!
-            update_path(run_dir, grid, mapper) 
+            update_path(run_dir, grid, mapper)
+            update_trajectory(run_dir, mapper)
             
             print(f"Path updated. Obstacles detected: {grid.sum() > 0}")
         except Exception as e:
@@ -46,7 +47,7 @@ def planning_loop(stop_event: threading.Event, run_dir: Path):
         stop_event.wait(config.PATH_UPDATE_INTERVAL)
 
 def execution_loop(stop_event: threading.Event, run_dir: Path):
-    path_follower = PathFollower(run_dir)
+    path_follower = PathFollowerV2(run_dir)
     next_tick = time.monotonic()  # absolute schedule anchor
 
     while not stop_event.is_set():
@@ -80,14 +81,14 @@ if __name__ == "__main__":
     pd.DataFrame(columns=['id', 'latitude', 'longitude']).to_csv(path_file, index=False)
 
     # seed data for testing
-    # data = {
-    #     'id': [0, 1, 2, 0, 0, 1, 2, 3, 4],
-    #     'category': ['gps', 'gps', 'gps', 'destination', 'camera', 'camera', 'camera', 'camera', 'camera'],
-    #     'latitude': [51.011466, 51.011401, 51.011335, 51.011504, 51.011453, 51.011412, 51.011340, 51.011485, 51.011394],
-    #     'longitude': [3.708731, 3.709055, 3.709215, 3.708728, 3.708779, 3.708822, 3.708969, 3.708916, 3.709079],
-    #     'heading': [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    # }
-    # pd.DataFrame(data).to_csv(points_file, index=False)
+    data = {
+        'id': [0, 1, 2, 0, 0, 1, 2, 3, 4],
+        'category': ['gps', 'gps', 'gps', 'destination', 'camera', 'camera', 'camera', 'camera', 'camera'],
+        'latitude': [51.011466, 51.011401, 51.011335, 51.011504, 51.011453, 51.011412, 51.011340, 51.011485, 51.011394],
+        'longitude': [3.708731, 3.709055, 3.709215, 3.708728, 3.708779, 3.708822, 3.708969, 3.708916, 3.709079],
+        'heading': [0.0, 0.0, 90.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    }
+    pd.DataFrame(data).to_csv(points_file, index=False)
 
 
     # data voor demo in blaarmeersen
@@ -106,7 +107,7 @@ if __name__ == "__main__":
 
     # threads
     stop_event = threading.Event()
-    threading.Thread(target=collection_loop, args=(stop_event, run_dir), daemon=True).start()
+    # threading.Thread(target=collection_loop, args=(stop_event, run_dir), daemon=True).start()
     threading.Thread(target=planning_loop, args=(stop_event, run_dir), daemon=True).start()
     threading.Thread(target=execution_loop, args=(stop_event, run_dir), daemon=True).start()
 

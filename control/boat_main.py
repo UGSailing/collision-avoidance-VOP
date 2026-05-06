@@ -19,8 +19,8 @@ from datetime import datetime
 
 import config
 from data_collection import DataCollector
-from path_planning import update_path, OccupancyMapper
-from path_execution import PathFollower
+from path_planning import update_path, update_trajectory, OccupancyMapper
+from path_execution import PathFollowerV2
 
 
 def collection_loop(stop_event: threading.Event, run_dir: Path):
@@ -50,6 +50,7 @@ def planning_loop(stop_event: threading.Event, run_dir: Path):
         try:
             grid = mapper.update_grid(run_dir / "points.csv")
             update_path(run_dir, grid, mapper)
+            update_trajectory(run_dir, mapper)
             print(f"Path updated. Obstacles detected: {grid.sum() > 0}")
         except Exception as e:
             print(f"Path planning error: {e}")
@@ -57,7 +58,7 @@ def planning_loop(stop_event: threading.Event, run_dir: Path):
 
 
 def execution_loop(stop_event: threading.Event, run_dir: Path):
-    path_follower = PathFollower(run_dir)
+    path_follower = PathFollowerV2(run_dir)
     while not stop_event.is_set():
         try:
             path_follower.follow_path(run_dir)

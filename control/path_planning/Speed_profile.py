@@ -39,6 +39,7 @@ import numpy as np
 import casadi as ca
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+from scipy.integrate import trapezoid
 from dataclasses import dataclass
 
 
@@ -342,7 +343,7 @@ def solve_speed_profile(geo: dict, ship: Params, N_opt: int = 200,
         T_i = T_req_sol[i]
         n_sol[i] = np.sign(T_i) * np.sqrt(abs(T_i) / (p.Kt + 1e-16))
 
-    T_total = np.trapz(1.0 / (v_sol + 1e-8), s_nodes)
+    T_total = trapezoid(1.0 / (v_sol + 1e-8), s_nodes)
 
     print("\n=== PHASE 2 RESULTS ===")
     print(f"  Total traversal time : {T_total:.1f} s")

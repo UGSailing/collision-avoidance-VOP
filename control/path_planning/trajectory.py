@@ -29,6 +29,8 @@ class TrajectoryConfig:
     n_samples: int = int(getattr(config, "TRAJ_POINTS", 300))
     v_min: float = float(getattr(config, "TRAJ_MIN_SPEED", 0.05))
     v_max: float = float(getattr(config, "TRAJ_MAX_SPEED", 5.0))
+    use_speed_profile: bool = bool(getattr(config, "TRAJ_USE_SPEED_PROFILE", True))
+    fallback_speed: float = float(getattr(config, "TRAJ_FALLBACK_SPEED", 0.4))
 
 
 def _path_signature(df: pd.DataFrame) -> str:
@@ -64,6 +66,24 @@ def _fit_control_points(points_xy: np.ndarray, n_cp: int) -> tuple[np.ndarray, n
     px = np.interp(s_cp, s, points_xy[:, 0])
     py = np.interp(s_cp, s, points_xy[:, 1])
     return px, py
+
+
+def _dedupe_points(points_xy: np.ndarray, min_dist: float) -> np.ndarray:
+    if len(points_xy) < 2:
+        return points_xy
+    keep = [points_xy[0]]
+    for pt in points_xy[1:]:
+        if np.linalg.norm(pt - keep[-1]) >= min_dist:
+            keep.append(pt)
+    if len(keep) == 1:
+        keep.append(points_xy[-1])
+    return np.array(keep)
+
+
+def _fallback_speed_profile(s_path: np.ndarray, speed_mps: float) -> tuple[np.ndarray, np.ndarray]:
+    v = np.full_like(s_path, max(speed_mps, 0.01), dtype=float)
+    thrust = np.full_like(s_path, float(config.FIXED_THRUST), dtype=float)
+    return v, thrust
 
 
 def _eval_bspline(Px: np.ndarray, Py: np.ndarray, t_vals: Iterable[float]) -> tuple[np.ndarray, np.ndarray]:
@@ -106,24 +126,44 @@ def update_trajectory(run_dir: Path, mapper) -> None:
         for row in path_df.itertuples()
     ])
 
+    points_xy = _dedupe_points(points_xy, min_dist=max(0.01, float(config.GRID_RESOLUTION) * 0.25))
+    if len(points_xy) < 2:
+        return
+
     cfg = TrajectoryConfig()
     px, py = _fit_control_points(points_xy, cfg.n_control_points)
 
-    geo = compute_path_geometry(px, py, N=max(200, cfg.n_samples))
     ship = Params()
-    result = solve_speed_profile(geo, ship, N_opt=cfg.n_samples, v_min=cfg.v_min, v_max=cfg.v_max)
+    result = None
+    if cfg.use_speed_profile:
+        try:
+            geo = compute_path_geometry(px, py, N=max(200, cfg.n_samples))
+            result = solve_speed_profile(geo, ship, N_opt=cfg.n_samples, v_min=cfg.v_min, v_max=cfg.v_max)
+        except Exception as exc:
+            print(f"Trajectory speed profile failed: {exc}")
 
     t_vals = np.linspace(0.0, 1.0, cfg.n_samples)
     xs, ys = _eval_bspline(px, py, t_vals)
+
+    loop_tol = max(0.25, float(config.GRID_RESOLUTION))
+    if len(xs) > 2:
+        loop_dist = float(np.hypot(xs[-1] - xs[0], ys[-1] - ys[0]))
+        if loop_dist <= loop_tol:
+            xs = xs[:-1]
+            ys = ys[:-1]
+            t_vals = t_vals[:-1]
 
     dx = np.gradient(xs)
     dy = np.gradient(ys)
     headings = (np.degrees(np.arctan2(dy, dx)) + 360.0) % 360.0
 
     s_path = np.concatenate([[0.0], np.cumsum(np.sqrt(np.diff(xs)**2 + np.diff(ys)**2))])
-    v_path = np.interp(s_path, result["s"], result["v"])
-    T_req = np.interp(s_path, result["s"], result["T_req"])
-    thrust = np.clip(T_req / max(ship.T_max, 1e-6), 0.0, 1.0)
+    if result is None or not np.isfinite(result["v"]).all():
+        v_path, thrust = _fallback_speed_profile(s_path, cfg.fallback_speed)
+    else:
+        v_path = np.interp(s_path, result["s"], result["v"])
+        T_req = np.interp(s_path, result["s"], result["T_req"])
+        thrust = np.clip(T_req / max(ship.T_max, 1e-6), 0.0, 1.0)
 
     latlon = [_local_to_latlon(x, y, origin_lat, origin_lon) for x, y in zip(xs, ys)]
 

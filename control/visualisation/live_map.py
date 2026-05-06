@@ -1,6 +1,6 @@
 import argparse
 import logging
-import os
+import os 
 import dash
 from dash import dcc, html
 from dash.dependencies import Input, Output
@@ -71,6 +71,8 @@ def update_map(n):
     try:
         df = pd.read_csv(os.path.join(DATA_FOLDER, 'points.csv'))
         path_df = pd.read_csv(os.path.join(DATA_FOLDER, 'path.csv'))
+        traj_path = os.path.join(DATA_FOLDER, 'trajectory.csv')
+        traj_df = pd.read_csv(traj_path) if os.path.exists(traj_path) else None
     except Exception as _:
         # failsafe in case the CSVs are currently being written to by another process
         return dash.no_update
@@ -93,6 +95,17 @@ def update_map(n):
             line=dict(width=3, color="red"),
             hoverinfo="skip",
             name="path"
+        ))
+
+    # overlay the trajectory as a line trace (if available)
+    if traj_df is not None and len(traj_df) > 1:
+        fig.add_trace(go.Scattermap(
+            lat=traj_df["latitude"],
+            lon=traj_df["longitude"],
+            mode="lines",
+            line=dict(width=2, color="lime"),
+            hoverinfo="skip",
+            name="trajectory"
         ))
 
 

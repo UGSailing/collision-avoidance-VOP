@@ -84,7 +84,7 @@ def _initial_pose(run_dir: Path) -> tuple[float, float, float]:
         except Exception:
             pass
 
-    return 51.011466, 3.708731, 0.0
+    return 51.011466, 3.708731, 90.0
 
 
 def _append_gps(points_path: Path, lat: float, lon: float, heading: float) -> None:

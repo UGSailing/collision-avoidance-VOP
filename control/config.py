@@ -18,6 +18,19 @@ HEADING_ERROR_FOR_MAX_RUDDER_DEG = 45.0  # full rudder at this heading error
 STEERING_AGGRESSIVENESS = 1.0  # >1.0 stronger response, <1.0 gentler
 STEERING_DIRECTION = 1.0  # set to -1.0 if rudder sign is reversed
 
+# Trajectory optimization (v3)
+TRAJ_CONTROL_POINTS = 16
+TRAJ_POINTS = 300
+TRAJ_MIN_SPEED = 0.05
+TRAJ_MAX_SPEED = 5.0
+TRAJ_LOOKAHEAD_POINTS = 6
+TRAJ_USE_SPEED_PROFILE = True
+TRAJ_FALLBACK_SPEED = 0.4
+TRAJ_HEADING_LEAD_METERS = 2.0
+TRAJ_HEADING_ALIGN_DEG = 25.0
+TRAJ_VERBOSE = False
+TRAJ_EXECUTION_VERBOSE = False
+
 # ESP32 serial
 ESP_SERIAL_PORT = '/dev/ttyUSB0'
 ESP_BAUDRATE = 115200
@@ -25,8 +38,8 @@ ESP_TIMEOUT = 0.1  # seconds
 
 # Optional output fanout for mock_gps.py
 ESP_SERIAL_PORTS = [
-    ESP_SERIAL_PORT,
-    # 'socket://127.0.0.1:8765',
+    # ESP_SERIAL_PORT,
+    'socket://127.0.0.1:8765',
 ]
 
 # Obstacle input over Ethernet TCP.
@@ -54,6 +67,7 @@ NTRIP_SEND_GGA_EVERY = 10.0  # seconds
 USER_HEADING_OFFSET_DEG = 0.0
 
 # Geofencing
+<<<<<<< Updated upstream
 GEOFENCE_POND_ZWIJNAARDE = [
     (51.011512, 3.708449),
     (51.011328, 3.708441),
@@ -74,6 +88,20 @@ GEOFENCE_POND_ZWIJNAARDE = [
 #                             (51.044848, 3.682423),
                             # (51.045091, 3.683042)] #voor demo in blaarmeersen
 
+=======
+# GEOFENCE_POND_ZWIJNAARDE = [
+#     (51.011512, 3.708449),
+#     (51.011328, 3.708441),
+#     (51.011325, 3.708473),
+#     (51.011439, 3.708548),
+#     (51.011423, 3.708703),
+#     (51.011369, 3.708770),
+#     (51.011305, 3.708891),
+#     (51.011295, 3.709387),
+#     (51.011450, 3.709382),
+#     (51.011554, 3.708612),
+# ]
+>>>>>>> Stashed changes
 EXCLUSION_ZONES = [
     # # Vierkant
     # [
