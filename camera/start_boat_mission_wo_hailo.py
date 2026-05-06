@@ -166,7 +166,7 @@ def build_obstacle_tcp_payload(detections: list[dict[str, Any]]) -> str | None:
 
 
 def load_stereo_calib_npz():
-    # loads the dual calib file (.npz)
+    """Loads the dual calib file (.npz)"""
     current_file = Path(__file__).resolve()
     camera_dir = current_file.parent.parent
     calib_file = camera_dir / "calibration_npz" / "stereo_calib.npz"
@@ -238,7 +238,7 @@ def create_parser() -> argparse.ArgumentParser:
         "--object-height-m",
         type=float,
         default=0.13,
-        help="Real-world object height in meters used for single-camera depth",
+        help="Real-world object height in meters used for single-camera depth. Be sure to measure the object and adjust the value if necessary.",
     )
     parser.add_argument(
         "--calib-yaml",

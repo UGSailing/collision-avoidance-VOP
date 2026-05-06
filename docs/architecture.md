@@ -51,3 +51,8 @@ Whenever a run is started, a new directory is created locally (`/runs/YYYY-MM-DD
 - **`camera/recordings/`**: A directory to store the recordings of the camera feed and the corresponding detections in jsonl format. Each recording is stored in a subdirectory named with the timestamp of when the recording was started.
 - **`camera/separate_files/`**: Contains separate scripts for different parts of the camera pipeline, e.g. a file to test the TCP connection to the Control Pi.
 - **`camera/yolo_models/`**: Contains the models you can choose between to run object detection. E.g. duck.pt contains the trained weights for the duck detection model.
+
+- Files that run the entire camera pipeline:
+- **`camera/run_mision.sh`**: A bash script to run the entire camera pipeline, including starting the detection and sending the data to the Control Pi. This is meant to be run on the Camera Pi. This is the script that runs on the boat.
+- **`camera/start_boat_mission_wo_hailo.py`**: This Python file is the core of the camera pipeline, and is called by the `run_mision.sh` script.
+- Note: There is also a hailo version of both files, respectively `run_mission_with_hailo.sh` and `start_boat_mission_hailo.py`, but we currently don't use them, since there are quite some false positive detections with it.
