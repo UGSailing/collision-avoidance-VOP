@@ -67,7 +67,6 @@ NTRIP_SEND_GGA_EVERY = 10.0  # seconds
 USER_HEADING_OFFSET_DEG = 0.0
 
 # Geofencing
-<<<<<<< Updated upstream
 GEOFENCE_POND_ZWIJNAARDE = [
     (51.011512, 3.708449),
     (51.011328, 3.708441),
@@ -88,7 +87,6 @@ GEOFENCE_POND_ZWIJNAARDE = [
 #                             (51.044848, 3.682423),
                             # (51.045091, 3.683042)] #voor demo in blaarmeersen
 
-=======
 # GEOFENCE_POND_ZWIJNAARDE = [
 #     (51.011512, 3.708449),
 #     (51.011328, 3.708441),
@@ -101,7 +99,6 @@ GEOFENCE_POND_ZWIJNAARDE = [
 #     (51.011450, 3.709382),
 #     (51.011554, 3.708612),
 # ]
->>>>>>> Stashed changes
 EXCLUSION_ZONES = [
     # # Vierkant
     # [
