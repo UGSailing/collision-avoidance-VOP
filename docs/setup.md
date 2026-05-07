@@ -30,7 +30,7 @@ sudo raspi-config
 ### Pi-Pi connection
 see [below](#pi-pi-connection)
 
-### Optional: autorun the script on boot
+### Optional: autorun the script on boat
 To start the control system automatically when the Raspberry Pi boots:
 
 1. Copy the systemd service script:
