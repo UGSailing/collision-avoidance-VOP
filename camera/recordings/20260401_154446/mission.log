@@ -1,7 +1,0 @@
-2026-04-01 15:44:46 | INFO | Run folder: /home/mario/Documents/collision-avoidance-VOP/camera/recordings/20260401_154446
-2026-04-01 15:44:46 | INFO | Camera output dir: /home/mario/Documents/collision-avoidance-VOP/camera/recordings/20260401_154446/camera0_recording
-2026-04-01 15:44:46 | INFO | Hailo apps root: /home/mario/Documents/hailo-apps
-2026-04-01 15:44:46 | INFO | Calibration YAML: /home/mario/Documents/collision-avoidance-VOP/camera/calibration_yamls/camera_calibration.yaml
-2026-04-01 15:44:46 | INFO | Network: yolov8s
-2026-04-01 15:44:46 | INFO | Input: rpi
-2026-04-01 15:44:46 | INFO | Logging label: bottle

@@ -1,5 +1,0 @@
-2026-04-22 15:03:31,058 | INFO | Run folder: /home/mario/Documents/collision-avoidance-VOP/camera/recordings/20260422_150331
-2026-04-22 15:03:31,058 | INFO | Backend: pi
-2026-04-22 15:03:31,058 | INFO | Model: duck.pt
-2026-04-22 15:03:31,058 | INFO | Resolution/FPS: 1920x1080 @ 5
-2026-04-22 15:03:31,058 | INFO | Log interval: 0.2 sec
